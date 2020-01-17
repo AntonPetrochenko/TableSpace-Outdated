@@ -1,3 +1,3 @@
 # *Codename* TableSpace
 
-Something something testing, testing
+An instrument for setting up all sorts of online meetings.
