@@ -36,6 +36,7 @@ wss.on('connection', function connection(ws) {
 		"HELO!",
 		userlist
 	]
+	//Только теперь добавляем нового пользователя в список, чтобы он не получал данные о самом себе в списке существующих пользователей
 	connections.push(ws)
 	console.log(connections.indexOf(ws))
 	ws.send(JSON.stringify(connectionMessage)); //HELO! был отправлен, отправляем остальным пользователям UserJoin
@@ -51,6 +52,6 @@ wss.on('connection', function connection(ws) {
 	)
 	console.log('Sent HELO!')
 	
-	//Только теперь добавляем нового пользователя в список, чтобы он не получал данные о своём же входе
+	
 
 });
