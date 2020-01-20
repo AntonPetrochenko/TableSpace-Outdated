@@ -1,0 +1,1 @@
+node main.js 1> event.log 2> error.log

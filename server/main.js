@@ -8,35 +8,49 @@ wss.on('connection', function connection(ws) {
 	
 	ws.on('message', function incoming(message) {
 		message = JSON.parse(message)
-		connections.forEach( (client, index) => {
+		connections.forEach( (client, index) => { //Отправляем ответ каждому клиенту, client = цель отправителя, index = индекс отправителя
 				if (client !== ws) {
 					reply = [
 						'CursorMove',
-						index,
+						connections.indexOf(ws),
 						message
 					]
 					client.send(JSON.stringify(reply))
 				}
 			}
 		)
-		
 	});
 
-
+	
 	//Конструирование HELO! пакета
-	connections.push(ws)
 	userlist = []
 	connections.forEach( (connection,index) => {
 			userlist.push([
-				index
-			])
+				index]
+			)
 		}
 	)
 	
-	console.log('Sent HELO!')
+	
 	connectionMessage = [
 		"HELO!",
 		userlist
 	]
-	ws.send(JSON.stringify(connectionMessage));
+	connections.push(ws)
+	console.log(connections.indexOf(ws))
+	ws.send(JSON.stringify(connectionMessage)); //HELO! был отправлен, отправляем остальным пользователям UserJoin
+	connections.forEach( (client, index) => {
+			if (client !== ws) {
+				reply = [
+					'UserJoin',
+					[connections.indexOf(ws)],
+				]
+				client.send(JSON.stringify(reply))
+			}
+		}
+	)
+	console.log('Sent HELO!')
+	
+	//Только теперь добавляем нового пользователя в список, чтобы он не получал данные о своём же входе
+
 });
