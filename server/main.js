@@ -20,7 +20,19 @@ wss.on('connection', function connection(ws) {
 			}
 		)
 	});
-
+	ws.on('close', function handleClose() {
+		leavingUser = connections.indexOf(ws)
+		
+		connections.forEach( (client) => {
+			reply = [
+				'UserLeft',
+				leavingUser
+			]
+			client.send(JSON.stringify(reply))
+		} )
+		
+		delete connections[leavingUser]
+	})
 	
 	//Конструирование HELO! пакета
 	userlist = []

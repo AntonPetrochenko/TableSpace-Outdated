@@ -2,17 +2,22 @@ var socket
 var cursorLayer
 var cursor
 var mouse = {clientX:0,clientY:0}
+var mouseUpdate = true
 var lastReply
 
 
 function updateCursorPosition(e) {
 	mouse = e
+	mouseUpdate = true
 }	
 
 function sendCursorPosition() {
-	pos = [mouse.clientX,mouse.clientY]
-	message = JSON.stringify(pos)
-	socket.send(message)
+	if (mouseUpdate) {
+		mouseUpdate = false
+		pos = [mouse.clientX,mouse.clientY]
+		message = JSON.stringify(pos)
+		socket.send(message)
+	}
 }
 
 function initcursors() {
@@ -21,7 +26,7 @@ function initcursors() {
 	cursor = document.getElementById("cursor")
 	cursorLayer.onmousemove = updateCursorPosition
 	
-	socket = new WebSocket("ws://localhost:31442")
+	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442")
 	socket.onmessage = function (reply) {
 	message = JSON.parse(reply.data)
 	if (message[0] == "HELO!") {
@@ -39,8 +44,11 @@ function initcursors() {
 		setClientCursorPosition(message[1],message[2])
 	}
 	if (message[0] == "UserJoin") {
-		debugger
 		createUserCursor(message[1])
+	}
+	if (message[0] == "UserLeft") {
+		userCursors[message[1]].img.remove()
+		delete userCursors[message[1]]
 	}
 }
 
@@ -55,7 +63,7 @@ function createUserCursor(cursor) {
 	img = document.createElement('img')
 	img.src = "cursor.png"
 	img.style.position = "absolute"
-	img.style.transition = "position: absolute; transition: top 0.05s ease, left 0.05s ease"
+	img.style.transition = "top 0.05s ease, left 0.05s ease"
 	newCursor.img = img
 	userCursors[cursor[0]] = newCursor
 	cursorLayer.appendChild(newCursor.img)
