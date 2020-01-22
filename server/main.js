@@ -8,17 +8,30 @@ wss.on('connection', function connection(ws) {
 	
 	ws.on('message', function incoming(message) {
 		message = JSON.parse(message)
-		connections.forEach( (client, index) => { //Отправляем ответ каждому клиенту, client = цель отправителя, index = индекс отправителя
-				if (client !== ws) {
+		if (message[0] == "CursorMove") { 
+			connections.forEach( (client, index) => { //Отправляем ответ каждому клиенту, client = цель отправителя, index = индекс отправителя
+					if (client !== ws) {
+						reply = [
+							'CursorMove',
+							connections.indexOf(ws),
+							message[1]
+						]
+						client.send(JSON.stringify(reply))
+					}
+				}
+			)
+		}
+		if (message[0] == "ChatMessage") {
+			connections.forEach( (client, index) => { //Отправляем ответ каждому клиенту, client = цель отправителя, index = индекс отправителя
 					reply = [
-						'CursorMove',
-						connections.indexOf(ws),
-						message
+						'ChatMessage',
+						message[1]
 					]
 					client.send(JSON.stringify(reply))
 				}
-			}
-		)
+			)
+			console.log("Chat")
+		}
 	});
 	ws.on('close', function handleClose() {
 		leavingUser = connections.indexOf(ws)

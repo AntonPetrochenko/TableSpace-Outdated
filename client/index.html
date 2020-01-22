@@ -3,7 +3,10 @@
 		<script src="cursortest.js"></script>
 	</head>
 	<body onload="">
-		<input id=ip type=text value="local.cardboardbox.ru"></input> <button onclick="initcursors()">Connect</button>
+		<input id=ip type=text value="local.cardboardbox.ru"></input> <button onclick="initcursors()">Connect</button><br>
+		<input id=chatinput style="width: 40vw" type=text value=""></input> <button onclick="sendchat()">Send</button>
 		<div id=cursorlayer style="width: 90vw; height: 90vh; border: 1px solid black">
+			<div id=chatlayer> </div>
+		</div>
 	</body>
 </html>
