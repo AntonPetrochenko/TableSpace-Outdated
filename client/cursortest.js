@@ -1,5 +1,5 @@
 var socket
-var cursorLayer
+var canvasLayer
 var chatLayer
 var chatBox
 var cursor
@@ -10,6 +10,7 @@ var lastReply
 function updateCursorPosition(e) {
 	mouse = e
 	mouseUpdate = true
+	e.preventDefault()
 }	
 
 function sendCursorPosition() {
@@ -37,15 +38,19 @@ function sendchat() {
 	chatBox.value = ""
 }
 
+
+function addObject() {
+	newGroup = canvasLayer.group()
+	newGroup.rect(200,200).draggable()
+}
+
+
 function initcursors() {
 	
-	cursorLayer = document.getElementById('cursorlayer')
-	cursor = document.getElementById("cursor")
-	cursorLayer.onmousemove = updateCursorPosition
+	canvasLayer = SVG('#viewport')
+	document.body.addEventListener('mousemove',updateCursorPosition)
 	
-	chatLayer = document.getElementById('chatlayer')
-	chatBox = document.getElementById("chatinput")
-	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442")
+	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442", ['TableSpace'])
 	socket.onmessage = function (reply) {
 		message = JSON.parse(reply.data)
 		if (message[0] == "HELO!") {
@@ -56,7 +61,6 @@ function initcursors() {
 			setInterval(sendCursorPosition,50)
 			return
 		}
-		console.log(message)
 		lastReply = reply
 		if (message[0] == "CursorMove") {
 			console.log(message)
@@ -80,18 +84,12 @@ function initcursors() {
 userCursors = []
 //Конструктор нового курсора пользователя
 function createUserCursor(cursor) {
-	console.log('Creating a cursor!')
 	newCursor = []
-	img = document.createElement('img')
-	img.src = "cursor.png"
-	img.style.position = "absolute"
-	img.style.transition = "top 0.05s ease, left 0.05s ease"
+	img = canvasLayer.image('cursor.png')
 	newCursor.img = img
 	userCursors[cursor[0]] = newCursor
-	cursorLayer.appendChild(newCursor.img)
 }
 
 function setClientCursorPosition(uid,vec2arr) {
-	userCursors[uid].img.style.left = vec2arr[0]
-	userCursors[uid].img.style.top = vec2arr[1]
+	userCursors[uid].img.animate(100,0,'now').ease('>').move(vec2arr[0],vec2arr[1])
 }

@@ -1,48 +1,41 @@
 const WebSocket = require('ws');
  
-const wss = new WebSocket.Server({ port: 31442 });
+const wss = new WebSocket.Server({ port: 31442 },"TableSpace",{perMessageDeflate: true});
 clientIdIncrement = 0;
 
 connections = []
+objects = []
+
 wss.on('connection', function connection(ws) {
 	
 	ws.on('message', function incoming(message) {
 		message = JSON.parse(message)
 		if (message[0] == "CursorMove") { 
-			connections.forEach( (client, index) => { //Отправляем ответ каждому клиенту, client = цель отправителя, index = индекс отправителя
-					if (client !== ws) {
-						reply = [
-							'CursorMove',
-							connections.indexOf(ws),
-							message[1]
-						]
-						client.send(JSON.stringify(reply))
-					}
-				}
-			)
+			broadcastOthers([
+			       		 'CursorMove',
+					 connections.indexOf(ws),
+					 message[1]
+					],ws)
+
 		}
 		if (message[0] == "ChatMessage") {
-			connections.forEach( (client, index) => { //Отправляем ответ каждому клиенту, client = цель отправителя, index = индекс отправителя
-					reply = [
-						'ChatMessage',
-						message[1]
-					]
-					client.send(JSON.stringify(reply))
-				}
+			broadcastAll([
+				      'ChatMessage',
+				       message[1]
+				     ]
 			)
-			console.log("Chat")
+		}
+		if (message[0] == "CreateObject") {
+			
 		}
 	});
 	ws.on('close', function handleClose() {
 		leavingUser = connections.indexOf(ws)
 		
-		connections.forEach( (client) => {
-			reply = [
+		broadcastAll([
 				'UserLeft',
 				leavingUser
-			]
-			client.send(JSON.stringify(reply))
-		} )
+			])
 		
 		delete connections[leavingUser]
 	})
@@ -61,22 +54,30 @@ wss.on('connection', function connection(ws) {
 		"HELO!",
 		userlist
 	]
-	//Только теперь добавляем нового пользователя в список, чтобы он не получал данные о самом себе в списке существующих пользователей
 	connections.push(ws)
 	console.log(connections.indexOf(ws))
 	ws.send(JSON.stringify(connectionMessage)); //HELO! был отправлен, отправляем остальным пользователям UserJoin
-	connections.forEach( (client, index) => {
-			if (client !== ws) {
-				reply = [
+	broadcastOthers([
 					'UserJoin',
 					[connections.indexOf(ws)],
-				]
-				client.send(JSON.stringify(reply))
-			}
-		}
-	)
+				],ws)
 	console.log('Sent HELO!')
 	
 	
 
 });
+
+function broadcastOthers(message,sender) {
+	connections.forEach( (client, index) => {
+			if (client !== sender) {
+				client.send(JSON.stringify(message))
+			}
+		}
+	)
+}
+function broadcastAll(message) {
+	connections.forEach( (client, index) => {
+			client.send(JSON.stringify(message))
+		}
+	)
+}
