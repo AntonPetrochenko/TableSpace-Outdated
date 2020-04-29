@@ -6,6 +6,10 @@ var cursor
 var mouse = {clientX:0,clientY:0}
 var mouseUpdate = true
 var lastReply
+var dragInterval
+var dragIntervalObject = {}
+
+tableObjects = []
 
 function updateCursorPosition(e) {
 	mouse = e
@@ -27,6 +31,17 @@ function sendCursorPosition() {
 	}
 }
 
+function sendDraggablePosition() {
+	message = JSON.stringify([
+		"ObjectMove",
+		tableObjects.indexOf(dragIntervalObject.element),
+		dragIntervalObject.x,
+		dragIntervalObject.y
+	])
+	
+	socket.send(message)
+}
+
 function sendchat() {
 	message = JSON.stringify(
 		[
@@ -40,8 +55,13 @@ function sendchat() {
 
 
 function addObject() {
-	newGroup = canvasLayer.group()
-	newGroup.rect(200,200).draggable()
+	message = JSON.stringify(
+		[
+			"CreateObject",
+			"debug_box"
+		]
+	)
+	socket.send(message)
 }
 
 
@@ -75,6 +95,24 @@ function initcursors() {
 		}
 		if (message[0] == "ChatMessage") {
 			chatLayer.innerHTML = chatLayer.innerHTML + `<div> ${message[1]} </div>`
+		}
+		if (message[0] == "CreateObject") {
+			
+			newSvg = canvasLayer.rect(100,100)
+			newSvg.draggable().on("dragstart",e => {dragInterval = setInterval(sendDraggablePosition,50)})
+			newSvg.on("dragend",e => {clearInterval(dragInterval)})
+			newSvg.on("dragmove", e => {
+				const { handler, box, el } = e.detail
+
+				dragIntervalObject.x = box.x
+				dragIntervalObject.y = box.y
+				dragIntervalObject.element = handler.el
+			})
+			tableObjects[message[1]] = newSvg
+
+		}
+		if (message[0] == "ObjectMove") {
+			tableObjects[message[1]].animate(100,0,'now').ease('>').move(message[2],message[3])
 		}
 }
 

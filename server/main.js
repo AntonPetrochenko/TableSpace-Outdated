@@ -4,7 +4,21 @@ const wss = new WebSocket.Server({ port: 31442 },"TableSpace",{perMessageDeflate
 clientIdIncrement = 0;
 
 connections = []
-objects = []
+tableObjects = []
+
+class Widget {
+	constructor(x,y,type) {
+		this.x = x
+		this.y = y
+		this.type = type
+	}
+}
+
+class DebugBox extends Widget {
+	constructor() {
+		super(100,100,"debug_box")
+	}
+}
 
 wss.on('connection', function connection(ws) {
 	
@@ -26,7 +40,17 @@ wss.on('connection', function connection(ws) {
 			)
 		}
 		if (message[0] == "CreateObject") {
-			
+			newObject = new Widget(message[1],message[2])
+			tableObjects.push(newObject)
+			broadcastAll(["CreateObject",tableObjects.indexOf(newObject),newObject])
+		}
+		if (message[0] == "ObjectMove") {
+			broadcastOthers([
+				"ObjectMove",
+				message[1],
+				message[2],
+				message[3]
+			],ws)
 		}
 	});
 	ws.on('close', function handleClose() {
@@ -52,7 +76,8 @@ wss.on('connection', function connection(ws) {
 	
 	connectionMessage = [
 		"HELO!",
-		userlist
+		userlist,
+		tableObjects
 	]
 	connections.push(ws)
 	console.log(connections.indexOf(ws))
