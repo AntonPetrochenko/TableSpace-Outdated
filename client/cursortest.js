@@ -67,6 +67,8 @@ function addObject() {
 
 function initcursors() {
 	
+	chatBox = document.getElementById("chatinput")
+	chatLayer = document.getElementById("chatport")
 	canvasLayer = SVG('#viewport')
 	document.body.addEventListener('mousemove',updateCursorPosition)
 	
