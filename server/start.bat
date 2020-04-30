@@ -1,1 +1,1 @@
-node main.js 1> event.log 2> error.log
+node main.js 1> stdout.log 2> stderr.log

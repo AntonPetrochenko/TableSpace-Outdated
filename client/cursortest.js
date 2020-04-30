@@ -12,7 +12,16 @@ var dragIntervalObject = {}
 tableObjects = []
 
 function updateCursorPosition(e) {
-	mouse = e
+	var m = canvasLayer.node.getScreenCTM();
+
+	// note: assumes the root is an <svg> element, replace 
+	// document.documentElement with your <svg> element.
+	var p = canvasLayer.node.createSVGPoint(); 
+
+	p.x = e.clientX;
+	p.y = e.clientY;
+	p = p.matrixTransform(m.inverse());
+	mouse = p
 	mouseUpdate = true
 	e.preventDefault()
 }	
@@ -20,7 +29,7 @@ function updateCursorPosition(e) {
 function sendCursorPosition() {
 	if (mouseUpdate) {
 		mouseUpdate = false
-		pos = [mouse.clientX,mouse.clientY]
+		pos = [mouse.x,mouse.y]
 		message = JSON.stringify(
 			[
 				"CursorMove",
@@ -66,13 +75,13 @@ function addObject() {
 
 
 function initcursors() {
-	
+
 	chatBox = document.getElementById("chatinput")
 	chatLayer = document.getElementById("chatport")
 	canvasLayer = SVG('#viewport')
 	document.body.addEventListener('mousemove',updateCursorPosition)
 	
-	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442", ['TableSpace'])
+	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442/ws")
 	socket.onmessage = function (reply) {
 		message = JSON.parse(reply.data)
 		if (message[0] == "HELO!") {
@@ -80,7 +89,7 @@ function initcursors() {
 					createUserCursor(cursor)
 				}
 			)
-			setInterval(sendCursorPosition,50)
+			setInterval(sendCursorPosition,100)
 			return
 		}
 		lastReply = reply
@@ -100,7 +109,7 @@ function initcursors() {
 		}
 		if (message[0] == "CreateObject") {
 			
-			newSvg = canvasLayer.rect(100,100)
+			newSvg = canvasLayer.rect(200,200)
 			newSvg.draggable().on("dragstart",e => {dragInterval = setInterval(sendDraggablePosition,50)})
 			newSvg.on("dragend",e => {clearInterval(dragInterval)})
 			newSvg.on("dragmove", e => {
@@ -131,5 +140,5 @@ function createUserCursor(cursor) {
 }
 
 function setClientCursorPosition(uid,vec2arr) {
-	userCursors[uid].img.animate(100,0,'now').ease('>').move(vec2arr[0],vec2arr[1])
+	userCursors[uid].img.animate(100,0,'now').ease('-').move(vec2arr[0],vec2arr[1])
 }

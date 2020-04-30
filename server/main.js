@@ -1,7 +1,15 @@
-const WebSocket = require('ws');
-var app = require('express')
+//const WebSocket = require('ws');
+var express = require('express')
+var multer = require('multer')
+
+var app = express()
+
+var expressWs = require('express-ws')(app)
+
+var upload = multer({ dest: 'uploads/' })
+var fs = require('fs');
  
-const wss = new WebSocket.Server({ port: 31442 },"TableSpace",{perMessageDeflate: true});
+//const wss = new WebSocket.Server(,"TableSpace");
 clientIdIncrement = 0;
 
 connections = []
@@ -21,9 +29,28 @@ class DebugBox extends Widget {
 	}
 }
 
-wss.on('connection', function connection(ws) {
+const asyncHandler = fn => (req, res, next) =>
+  Promise
+    .resolve(fn(req, res, next))
+    .catch(next)
+
+app.use(express.static('../client'))
+
+app.post('/upload', upload.single('avatar'), asyncHandler( (req, res, next) => {
+	const file = req.file
+	if (!file) {
+		const error = new Error('Please upload a file')
+		error.httpStatusCode = 400
+		return next(error)
+	}
+		res.send(file)
 	
-	ws.on('message', function incoming(message) {
+  }) )
+
+app.ws('/ws',function(ws,req) {
+//wss.on('connection', function connection(ws) {
+	
+	ws.on('message', async function incoming(message) {
 		message = JSON.parse(message)
 		if (message[0] == "CursorMove") { 
 			broadcastOthers([
@@ -82,7 +109,7 @@ wss.on('connection', function connection(ws) {
 	]
 	connections.push(ws)
 	console.log(connections.indexOf(ws))
-	ws.send(JSON.stringify(connectionMessage)); //HELO! был отправлен, отправляем остальным пользователям UserJoin
+	sendPacket(ws,connectionMessage); //HELO! был отправлен, отправляем остальным пользователям UserJoin
 	broadcastOthers([
 					'UserJoin',
 					[connections.indexOf(ws)],
@@ -96,14 +123,22 @@ wss.on('connection', function connection(ws) {
 function broadcastOthers(message,sender) {
 	connections.forEach( (client, index) => {
 			if (client !== sender) {
-				client.send(JSON.stringify(message))
+				sendPacket(client,message)
 			}
 		}
 	)
 }
 function broadcastAll(message) {
 	connections.forEach( (client, index) => {
-			client.send(JSON.stringify(message))
+			sendPacket(client,message)
 		}
 	)
 }
+
+function sendPacket(ws,message) {
+	if (ws.readyState == 1) {
+		ws.send(JSON.stringify(message))
+	}
+}
+
+app.listen(31442)
