@@ -11,6 +11,17 @@ var dragIntervalObject = {}
 
 tableObjects = []
 
+function toggleDrawer(e) {
+	var drawer = e.parentElement
+	if (drawer.classList.contains("hidden")) {
+		drawer.classList.remove("hidden")
+		drawer.classList.add("shown")
+	} else {
+		drawer.classList.remove("shown")
+		drawer.classList.add("hidden")
+	}
+}
+
 function updateCursorPosition(e) {
 	var m = canvasLayer.node.getScreenCTM();
 
@@ -109,7 +120,13 @@ function initcursors() {
 		}
 		if (message[0] == "CreateObject") {
 			
-			newSvg = canvasLayer.rect(200,200)
+			newSvg = canvasLayer.group()
+
+			if (message[2].type == "picture") {
+				newSvg.image()
+			}
+
+
 			newSvg.draggable().on("dragstart",e => {dragInterval = setInterval(sendDraggablePosition,50)})
 			newSvg.on("dragend",e => {clearInterval(dragInterval)})
 			newSvg.on("dragmove", e => {

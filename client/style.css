@@ -1,0 +1,47 @@
+body {
+    margin: 0;
+}
+
+.buttonpanel {
+    display: flex;
+    position: absolute;
+    bottom: 10px;
+    flex-direction: row;
+}
+
+.drawer {
+    margin: 0;
+    position: absolute;
+    transition-property: transform;
+    transition-duration: 0.5s;
+    transition-timing-function: ease-out;
+    background-color: white;
+    border-top: 3px solid black;
+    border-bottom: 3px solid black;
+}
+
+.drawer.drawer-top, .drawer.drawer-bottom {
+    width: 100%;
+}
+
+.drawer.drawer-top.shown {
+    transform: translateY(0)
+}
+
+.drawer.drawer-top.hidden {
+    transform: translateY(-100%)
+}
+
+.drawer-handle {
+    position: absolute;
+}
+
+.drawer-handle.handle-bottom {
+}
+
+.buttonpanel > img {
+    background-color: white;
+    border-radius: 10px;
+    border: 3px solid black;
+    margin-right: 5px;
+}

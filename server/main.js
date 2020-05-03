@@ -6,7 +6,15 @@ var app = express()
 
 var expressWs = require('express-ws')(app)
 
-var upload = multer({ dest: 'uploads/' })
+var storage = multer.diskStorage({
+	destination: function (req, file, cb) {
+	  cb(null, 'uploads/')
+	},
+	filename: function (req, file, cb) {
+	  cb(null, file.originalname)
+	}
+  })
+var upload = multer({storage: storage})
 var fs = require('fs');
  
 //const wss = new WebSocket.Server(,"TableSpace");
@@ -16,16 +24,23 @@ connections = []
 tableObjects = []
 
 class Widget {
-	constructor(x,y,type) {
-		this.x = x
-		this.y = y
+	x = 800
+	y = 450
+	constructor(type) {
 		this.type = type
 	}
 }
 
 class DebugBox extends Widget {
 	constructor() {
-		super(100,100,"debug_box")
+		super("debug_box")
+	}
+}
+
+class PictureBox extends Widget {
+	constructor(name) {
+		super("picture")
+
 	}
 }
 
@@ -34,9 +49,10 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next)
 
-app.use(express.static('../client'))
+app.use('/',express.static('../client'))
+app.use('/files',express.static('/uploads'))
 
-app.post('/upload', upload.single('avatar'), asyncHandler( (req, res, next) => {
+app.post('/upload', upload.single('upload'), asyncHandler( (req, res, next) => {
 	const file = req.file
 	if (!file) {
 		const error = new Error('Please upload a file')
@@ -68,7 +84,7 @@ app.ws('/ws',function(ws,req) {
 			)
 		}
 		if (message[0] == "CreateObject") {
-			newObject = new Widget(message[1],message[2])
+			newObject = new PictureBox(message[1],message[2])
 			tableObjects.push(newObject)
 			broadcastAll(["CreateObject",tableObjects.indexOf(newObject),newObject])
 		}

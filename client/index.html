@@ -4,23 +4,34 @@
 		<script src="cursortest.js"></script>
 		<script src="node_modules/@svgdotjs/svg.js/dist/svg.js"></script>
 		<script src="node_modules/@svgdotjs/svg.draggable.js/dist/svg.draggable.js"></script>
+		<link rel="stylesheet" href="style.css">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
 
 	</head>
-	<body onload="">
+	<body onload="" style="background-image: url(bg.jpg)">
 		<div id="chatport" style="z-index: -999; width: 100%; height: 100vh; position: absolute; margin: 0; padding: 0; left: 0; top: 0;">			
 		</div>
 		<svg id="viewport" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" style="z-index: -99; width: 100vw; height: 100vh; position: absolute; margin: 0; padding: 0; left: 0; top: 0">
 		</svg>
 		
 		
-		<input id=ip type=text value="local.cardboardbox.ru"> <button onclick="initcursors()">Connect</button><br>
-		<input id=chatinput style="width: 40vw" type=text value=""> <button onclick="sendchat()">Send</button><br>
-		<button onClick="addObject()">+</button>
-		<form target="hidden" action="/upload" method="post" id="fileform" enctype="multipart/form-data">
-			<input type="file" name="avatar" />
-			<input type="submit" />
-		  </form>
+		<div class="drawer drawer-top hidden">
+			<input id=ip type=text value="local.cardboardbox.ru"> <button onclick="initcursors()">Connect</button><br>
+			<input id=chatinput style="width: 40vw" type=text value=""> <button onclick="sendchat()">Send</button><br>
+			<button onClick="addObject()">+</button>
+			<form target="hidden" action="/upload" method="post" id="fileform" enctype="multipart/form-data">
+				<input type="file" name="upload" />
+				<input type="submit" />
+			</form>
+			<div class="drawer-handle handle-bottom" onclick="toggleDrawer(this)">
+				<img src="drawer-down.png">
+			</div>
+		</div>
+		<div class="buttonpanel">
+			<img src="icons8-hand-rock-100.png">
+			<img src="icons8-pencil-drawing-100.png">
+			<img src="icons8-pencil-eraser-100.png">
+		</div>
 		<iframe name="hidden" style="width:0;height:0;border:0; border:none;"></iframe>
 
 	</body>
