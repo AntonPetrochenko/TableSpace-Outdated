@@ -100,6 +100,7 @@ function initcursors() {
 					createUserCursor(cursor)
 				}
 			)
+			handleNewObjects(message[2])
 			setInterval(sendCursorPosition,100)
 			return
 		}
@@ -119,25 +120,9 @@ function initcursors() {
 			chatLayer.innerHTML = chatLayer.innerHTML + `<div> ${message[1]} </div>`
 		}
 		if (message[0] == "CreateObject") {
-			
-			newSvg = canvasLayer.group()
+			newObject = message[1]
 
-			if (message[2].type == "picture") {
-				newSvg.image()
-			}
-
-
-			newSvg.draggable().on("dragstart",e => {dragInterval = setInterval(sendDraggablePosition,50)})
-			newSvg.on("dragend",e => {clearInterval(dragInterval)})
-			newSvg.on("dragmove", e => {
-				const { handler, box, el } = e.detail
-
-				dragIntervalObject.x = box.x
-				dragIntervalObject.y = box.y
-				dragIntervalObject.element = handler.el
-			})
-			tableObjects[message[1]] = newSvg
-
+			handleNewObjects([newObject])
 		}
 		if (message[0] == "ObjectMove") {
 			tableObjects[message[1]].animate(100,0,'now').ease('>').move(message[2],message[3])
@@ -148,6 +133,31 @@ function initcursors() {
 }
 
 userCursors = []
+function handleNewObjects(objectList) {
+	objectList.forEach(object => {
+		newSvg = canvasLayer.group()
+		newSvg.draggable().on("dragstart", e => { dragInterval = setInterval(sendDraggablePosition, 50) })
+		newSvg.on("dragend", e => { clearInterval(dragInterval) })
+		newSvg.on("dragmove", e => {
+			const { handler, box, el } = e.detail
+			dragIntervalObject.x = box.x
+			dragIntervalObject.y = box.y
+			dragIntervalObject.element = handler.el
+		})
+
+		if (object.type == "picture") {
+			newSvg.image(object.filename)
+		}
+
+		newSvg.move(object.x,object.y)
+		newSvg.dblclick(createInteractionUI)
+
+		newSvg.node.dataset.networkId = object.networkId
+		newSvg.networkId = object.networkId
+		tableObjects[object.networkId] = newSvg
+	})
+}
+
 //Конструктор нового курсора пользователя
 function createUserCursor(cursor) {
 	newCursor = []
@@ -159,3 +169,18 @@ function createUserCursor(cursor) {
 function setClientCursorPosition(uid,vec2arr) {
 	userCursors[uid].img.animate(100,0,'now').ease('-').move(vec2arr[0],vec2arr[1])
 }
+
+function createInteractionUI(event) {
+	interactionUI = this.foreignObject(250,100)
+	interactionUI.move(this.children()[0].x()+10,this.children()[0].y()+10)
+	buttonTemplate = document.querySelector('#InteractionUI')
+	interactionUI.add(buttonTemplate.content.cloneNode(true))
+}
+
+function buttonDeleteObject(button) {
+	socket.send()
+}
+
+const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
+window.addEventListener('resize', appHeight)
+appHeight()

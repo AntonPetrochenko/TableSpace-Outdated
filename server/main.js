@@ -38,9 +38,9 @@ class DebugBox extends Widget {
 }
 
 class PictureBox extends Widget {
-	constructor(name) {
+	constructor(filename) {
 		super("picture")
-
+		this.filename = filename
 	}
 }
 
@@ -50,7 +50,7 @@ const asyncHandler = fn => (req, res, next) =>
     .catch(next)
 
 app.use('/',express.static('../client'))
-app.use('/files',express.static('/uploads'))
+app.use('/uploads',express.static('uploads'))
 
 app.post('/upload', upload.single('upload'), asyncHandler( (req, res, next) => {
 	const file = req.file
@@ -59,7 +59,12 @@ app.post('/upload', upload.single('upload'), asyncHandler( (req, res, next) => {
 		error.httpStatusCode = 400
 		return next(error)
 	}
-		res.send(file)
+	res.send("Success")
+	newObject = new PictureBox(file.path)
+	tableObjects.push(newObject)
+	newObject.networkId = tableObjects.indexOf(newObject)
+	broadcastAll(["CreateObject",newObject])
+	
 	
   }) )
 
@@ -84,9 +89,10 @@ app.ws('/ws',function(ws,req) {
 			)
 		}
 		if (message[0] == "CreateObject") {
-			newObject = new PictureBox(message[1],message[2])
+			newObject = new PictureBox(message[1])
 			tableObjects.push(newObject)
-			broadcastAll(["CreateObject",tableObjects.indexOf(newObject),newObject])
+			newObject.networkId = tableObjects.indexOf(newObject)
+			broadcastAll(["CreateObject",newObject])
 		}
 		if (message[0] == "ObjectMove") {
 			broadcastOthers([
@@ -95,6 +101,8 @@ app.ws('/ws',function(ws,req) {
 				message[2],
 				message[3]
 			],ws)
+			tableObjects[message[1]].x = message[2]
+			tableObjects[message[1]].y = message[3]
 		}
 	});
 	ws.on('close', function handleClose() {

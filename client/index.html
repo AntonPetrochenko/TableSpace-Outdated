@@ -1,38 +1,88 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<script src="cursortest.js"></script>
+	<head>		
 		<script src="node_modules/@svgdotjs/svg.js/dist/svg.js"></script>
 		<script src="node_modules/@svgdotjs/svg.draggable.js/dist/svg.draggable.js"></script>
 		<link rel="stylesheet" href="style.css">
+		<link rel="stylesheet" href="bootstrap.min.css">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-
+		
+		<script src="cursortest.js"></script>
 	</head>
 	<body onload="" style="background-image: url(bg.jpg)">
 		<div id="chatport" style="z-index: -999; width: 100%; height: 100vh; position: absolute; margin: 0; padding: 0; left: 0; top: 0;">			
 		</div>
-		<svg id="viewport" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" style="z-index: -99; width: 100vw; height: 100vh; position: absolute; margin: 0; padding: 0; left: 0; top: 0">
+		<svg id="viewport" class="viewport" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" style="">
 		</svg>
 		
 		
-		<div class="drawer drawer-top hidden">
-			<input id=ip type=text value="local.cardboardbox.ru"> <button onclick="initcursors()">Connect</button><br>
-			<input id=chatinput style="width: 40vw" type=text value=""> <button onclick="sendchat()">Send</button><br>
-			<button onClick="addObject()">+</button>
-			<form target="hidden" action="/upload" method="post" id="fileform" enctype="multipart/form-data">
+		<div class="card-body drawer drawer-top hidden">
+			<h6>Временное меню</h6>
+			<div class=form-inline>
+				<input class="m-1 form-control" id=ip type=text value="local.cardboardbox.ru"> 
+				<button class="m-1 btn btn-primary" onclick="initcursors()">Connect</button>
+			</div>
+			<div class=form-inline>
+				<input class="m-1 form-control" id=chatinput style="width: 40vw" type=text value=""> 
+				<button class="m-1 btn btn-primary" onclick="sendchat()">Send</button>
+			</div>
+			<button class="m-1 btn btn-primary" onClick="addObject()">+</button>
+			<form class="form-inline" target="hidden" action="/upload" method="post" id="fileform" enctype="multipart/form-data">
 				<input type="file" name="upload" />
-				<input type="submit" />
+				<input class="m-1 btn btn-primary" type="submit" />
 			</form>
 			<div class="drawer-handle handle-bottom" onclick="toggleDrawer(this)">
-				<img src="drawer-down.png">
+				<button type="button" class="m-1 btn btn-light"> 
+					Временное меню
+				</button>
 			</div>
 		</div>
 		<div class="buttonpanel">
-			<img src="icons8-hand-rock-100.png">
-			<img src="icons8-pencil-drawing-100.png">
-			<img src="icons8-pencil-eraser-100.png">
+			<button type="button" class="m-1 btn btn-light">
+				<svg class="bi bi-arrows-move" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M6.5 8a.5.5 0 00-.5-.5H1.5a.5.5 0 000 1H6a.5.5 0 00.5-.5z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M3.854 5.646a.5.5 0 00-.708 0l-2 2a.5.5 0 000 .708l2 2a.5.5 0 00.708-.708L2.207 8l1.647-1.646a.5.5 0 000-.708zM9.5 8a.5.5 0 01.5-.5h4.5a.5.5 0 010 1H10a.5.5 0 01-.5-.5z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M12.146 5.646a.5.5 0 01.708 0l2 2a.5.5 0 010 .708l-2 2a.5.5 0 01-.708-.708L13.793 8l-1.647-1.646a.5.5 0 010-.708zM8 9.5a.5.5 0 00-.5.5v4.5a.5.5 0 001 0V10a.5.5 0 00-.5-.5z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M5.646 12.146a.5.5 0 000 .708l2 2a.5.5 0 00.708 0l2-2a.5.5 0 00-.708-.708L8 13.793l-1.646-1.647a.5.5 0 00-.708 0zM8 6.5a.5.5 0 01-.5-.5V1.5a.5.5 0 011 0V6a.5.5 0 01-.5.5z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M5.646 3.854a.5.5 0 010-.708l2-2a.5.5 0 01.708 0l2 2a.5.5 0 01-.708.708L8 2.207 6.354 3.854a.5.5 0 01-.708 0z" clip-rule="evenodd"/>
+				</svg>
+			</button>
+			<button type="button" class="m-1 btn btn-light">
+				<svg class="bi bi-pencil" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M11.293 1.293a1 1 0 011.414 0l2 2a1 1 0 010 1.414l-9 9a1 1 0 01-.39.242l-3 1a1 1 0 01-1.266-1.265l1-3a1 1 0 01.242-.391l9-9zM12 2l2 2-9 9-3 1 1-3 9-9z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M12.146 6.354l-2.5-2.5.708-.708 2.5 2.5-.707.708zM3 10v.5a.5.5 0 00.5.5H4v.5a.5.5 0 00.5.5H5v.5a.5.5 0 00.5.5H6v-1.5a.5.5 0 00-.5-.5H5v-.5a.5.5 0 00-.5-.5H3z" clip-rule="evenodd"/>
+				</svg>
+			</button>
+			<button type="button" class="m-1 btn btn-light">
+				<svg class="bi bi-x" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M11.854 4.146a.5.5 0 010 .708l-7 7a.5.5 0 01-.708-.708l7-7a.5.5 0 01.708 0z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M4.146 4.146a.5.5 0 000 .708l7 7a.5.5 0 00.708-.708l-7-7a.5.5 0 00-.708 0z" clip-rule="evenodd"/>
+				</svg>
+			</button>
 		</div>
 		<iframe name="hidden" style="width:0;height:0;border:0; border:none;"></iframe>
 
+
+		<template id="InteractionUI">
+			<button class="m-1 btn btn-secondary" onclick="buttonDeleteObject(this)">
+				<svg class="bi bi-x-square-fill" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M2 0a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V2a2 2 0 00-2-2H2zm9.854 4.854a.5.5 0 00-.708-.708L8 7.293 4.854 4.146a.5.5 0 10-.708.708L7.293 8l-3.147 3.146a.5.5 0 00.708.708L8 8.707l3.146 3.147a.5.5 0 00.708-.708L8.707 8l3.147-3.146z" clip-rule="evenodd"/>
+				</svg>
+			</button>
+			<button class="m-1 btn btn-secondary">
+				<svg class="bi bi-arrows-angle-expand" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M1.5 10.036a.5.5 0 01.5.5v3.5h3.5a.5.5 0 010 1h-4a.5.5 0 01-.5-.5v-4a.5.5 0 01.5-.5z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M6.354 9.646a.5.5 0 010 .708l-4.5 4.5a.5.5 0 01-.708-.708l4.5-4.5a.5.5 0 01.708 0zm8.5-8.5a.5.5 0 010 .708l-4.5 4.5a.5.5 0 01-.708-.708l4.5-4.5a.5.5 0 01.708 0z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M10.036 1.5a.5.5 0 01.5-.5h4a.5.5 0 01.5.5v4a.5.5 0 11-1 0V2h-3.5a.5.5 0 01-.5-.5z" clip-rule="evenodd"/>
+				  </svg>
+			</button>
+			<button class="m-1 btn btn-secondary">
+				<svg class="bi bi-arrows-angle-contract" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M9.5 2.036a.5.5 0 01.5.5v3.5h3.5a.5.5 0 010 1h-4a.5.5 0 01-.5-.5v-4a.5.5 0 01.5-.5z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M14.354 1.646a.5.5 0 010 .708l-4.5 4.5a.5.5 0 11-.708-.708l4.5-4.5a.5.5 0 01.708 0zm-7.5 7.5a.5.5 0 010 .708l-4.5 4.5a.5.5 0 01-.708-.708l4.5-4.5a.5.5 0 01.708 0z" clip-rule="evenodd"/>
+					<path fill-rule="evenodd" d="M2.036 9.5a.5.5 0 01.5-.5h4a.5.5 0 01.5.5v4a.5.5 0 01-1 0V10h-3.5a.5.5 0 01-.5-.5z" clip-rule="evenodd"/>
+				  </svg>
+			</button>
+		</template>
 	</body>
 </html>

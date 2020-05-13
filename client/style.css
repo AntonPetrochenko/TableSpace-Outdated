@@ -1,5 +1,18 @@
 body {
     margin: 0;
+    overflow: hidden
+}
+
+html, body {margin: 0; height: 100%; overflow: hidden}
+
+viewport { 
+    width: 100vw;
+    height: 100%;
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    left: 0;
+    top: 0
 }
 
 .buttonpanel {
@@ -12,12 +25,11 @@ body {
 .drawer {
     margin: 0;
     position: absolute;
+    top: 0;
     transition-property: transform;
     transition-duration: 0.5s;
     transition-timing-function: ease-out;
     background-color: white;
-    border-top: 3px solid black;
-    border-bottom: 3px solid black;
 }
 
 .drawer.drawer-top, .drawer.drawer-bottom {
@@ -36,12 +48,3 @@ body {
     position: absolute;
 }
 
-.drawer-handle.handle-bottom {
-}
-
-.buttonpanel > img {
-    background-color: white;
-    border-radius: 10px;
-    border: 3px solid black;
-    margin-right: 5px;
-}
