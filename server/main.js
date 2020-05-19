@@ -1,10 +1,8 @@
-//const WebSocket = require('ws');
+/
 var express = require('express')
-var multer = require('multer')
-
 var app = express()
 
-var expressWs = require('express-ws')(app)
+var multer = require('multer')
 
 var storage = multer.diskStorage({
 	destination: function (req, file, cb) {
@@ -16,7 +14,27 @@ var storage = multer.diskStorage({
   })
 var upload = multer({storage: storage})
 var fs = require('fs');
- 
+
+app.use('/uploads',express.static('uploads'))
+
+app.post('/upload', upload.single('upload'), asyncHandler( (req, res, next) => {
+	const file = req.file
+	if (!file) {
+		const error = new Error('Please upload a file')
+		error.httpStatusCode = 400
+		return next(error)
+	}
+	res.send("Success")
+	newObject = new PictureBox(file.path) //Временное решение
+	tableObjects.push(newObject)
+	newObject.networkId = tableObjects.indexOf(newObject)
+	broadcastAll(["CreateObject",newObject]) 
+  }) )
+
+var expressWs = require('express-ws')(app)
+
+app.use('/',express.static('../client'))
+
 //const wss = new WebSocket.Server(,"TableSpace");
 clientIdIncrement = 0;
 
@@ -49,29 +67,11 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next)
 
-app.use('/',express.static('../client'))
-app.use('/uploads',express.static('uploads'))
 
-app.post('/upload', upload.single('upload'), asyncHandler( (req, res, next) => {
-	const file = req.file
-	if (!file) {
-		const error = new Error('Please upload a file')
-		error.httpStatusCode = 400
-		return next(error)
-	}
-	res.send("Success")
-	newObject = new PictureBox(file.path)
-	tableObjects.push(newObject)
-	newObject.networkId = tableObjects.indexOf(newObject)
-	broadcastAll(["CreateObject",newObject])
-	
-	
-  }) )
 
-app.ws('/ws',function(ws,req) {
-//wss.on('connection', function connection(ws) {
+app.ws('/ws',function(ws,req) { //Реализация функционала реального времени начинается здесь
 	
-	ws.on('message', async function incoming(message) {
+	ws.on('message', async function incoming(message) { //Обработчики сетевых пакетов
 		message = JSON.parse(message)
 		if (message[0] == "CursorMove") { 
 			broadcastOthers([
@@ -116,7 +116,8 @@ app.ws('/ws',function(ws,req) {
 		delete connections[leavingUser]
 	})
 	
-	//Конструирование HELO! пакета
+	//Конструирование HELO! пакета для информирования клиентской части
+	//о состоянии виртуального стола на момент подключения
 	userlist = []
 	connections.forEach( (connection,index) => {
 			userlist.push([
