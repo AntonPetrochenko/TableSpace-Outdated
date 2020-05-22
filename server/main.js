@@ -1,4 +1,8 @@
-/
+const asyncHandler = fn => (req, res, next) =>
+  Promise
+    .resolve(fn(req, res, next))
+    .catch(next)
+
 var express = require('express')
 var app = express()
 
@@ -62,11 +66,6 @@ class PictureBox extends Widget {
 	}
 }
 
-const asyncHandler = fn => (req, res, next) =>
-  Promise
-    .resolve(fn(req, res, next))
-    .catch(next)
-
 
 
 app.ws('/ws',function(ws,req) { //Реализация функционала реального времени начинается здесь
@@ -93,6 +92,10 @@ app.ws('/ws',function(ws,req) { //Реализация функционала р
 			tableObjects.push(newObject)
 			newObject.networkId = tableObjects.indexOf(newObject)
 			broadcastAll(["CreateObject",newObject])
+		}
+		if (message[0] == "DeleteObject") {
+			broadcastAll(["DeleteObject",message[1]])
+			delete tableObjects[message[1]]
 		}
 		if (message[0] == "ObjectMove") {
 			broadcastOthers([

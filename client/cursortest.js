@@ -124,6 +124,11 @@ function initcursors() {
 
 			handleNewObjects([newObject])
 		}
+		if (message[0] == "DeleteObject") {
+			debugger;
+			tableObjects[message[1]].node.remove()
+			delete tableObjects[message[1]]
+		}
 		if (message[0] == "ObjectMove") {
 			tableObjects[message[1]].animate(100,0,'now').ease('>').move(message[2],message[3])
 		}
@@ -158,7 +163,7 @@ function handleNewObjects(objectList) {
 	})
 }
 
-//Конструктор нового курсора пользователя
+//Фабричный метод новых курсоров пользователей
 function createUserCursor(cursor) {
 	newCursor = []
 	img = canvasLayer.image('cursor.png')
@@ -178,7 +183,13 @@ function createInteractionUI(event) {
 }
 
 function buttonDeleteObject(button) {
-	socket.send()
+	message = JSON.stringify(
+		[
+			"DeleteObject",
+			button.parentElement.parentElement.dataset.networkId
+		]
+	)
+	socket.send(message)
 }
 
 const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)

@@ -22,6 +22,12 @@ viewport {
     flex-direction: row;
 }
 
+.viewport {
+    transform: translate(0%,-50%);
+    position: absolute;
+    top: 50%;
+}
+
 .drawer {
     margin: 0;
     position: absolute;
