@@ -16,12 +16,12 @@ var storage = multer.diskStorage({
 	  cb(null, file.originalname)
 	}
   })
-var upload = multer({storage: storage})
+var multer_upload = multer({storage: storage})
 var fs = require('fs');
 
 app.use('/uploads',express.static('uploads'))
 
-app.post('/upload', upload.single('upload'), asyncHandler( (req, res, next) => {
+app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, next) => {
 	const file = req.file
 	if (!file) {
 		const error = new Error('Please upload a file')
@@ -50,6 +50,7 @@ class Widget {
 	y = 450
 	constructor(type) {
 		this.type = type
+		this.currentScale = 1
 	}
 }
 
