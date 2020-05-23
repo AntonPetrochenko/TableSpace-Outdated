@@ -97,7 +97,6 @@ function initcursors() {
 	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442/ws")
 	socket.onmessage = function (reply) {
 		message = JSON.parse(reply.data)
-		console.log(message)
 		if (message[0] == "HELO!") {
 			message[1].forEach( (cursor) => {
 					createUserCursor(cursor)
@@ -131,8 +130,13 @@ function initcursors() {
 			delete tableObjects[message[1]]
 		}
 		if (message[0] == "ObjectMove") {
-			tableObjects[message[1]].animate(100,0,'now').ease('>').move(message[2]+e.rx,message[3]+e.ry)
 			tableObjects[message[1]].children().forEach(e => {e.animate(100,0,'now').ease('>').move(message[2]+e.rx,message[3]+e.ry)} )
+		}
+
+		if (message[0] == "UpdateScale") {
+			targetContent = tableObjects[message[1]].children()[0].node
+			targetContent.width.baseVal.value = message[2]
+			targetContent.height.baseVal.value = message[3]
 		}
 }
 
@@ -147,9 +151,14 @@ function handleNewObjects(objectList) {
 		newSvg.currentScale = object.currentScale
 		if (object.type == "picture") {
 			image = newSvg.image(object.filename)
+
+			if (object.displayWidth) {
+				image.width(object.displayWidth)
+				image.height(object.displayHeight)
+			}
+			
 			image.rx = 0
 			image.ry = 0
-			createInteractionUI
 		}
 
 		newSvg.move(object.x,object.y)
@@ -240,9 +249,10 @@ function buttonScaleUp(button) {
 	//targetElement.scale(targetElement.currentScale,0,0)
 	message = JSON.stringify(
 		[
-			"UpdateScale",
+			"UpdateSize",
 			targetNetworkId,
-			targetElement.currentScale
+			targetContent.width.baseVal.value,
+			targetContent.height.baseVal.value
 		]
 	)
 	socket.send(message)
@@ -261,9 +271,10 @@ function buttonScaleDown(button) {
 	//targetElement.scale(targetElement.currentScale,0,0)
 	message = JSON.stringify(
 		[
-			"UpdateScale",
+			"UpdateSize",
 			targetNetworkId,
-			targetElement.currentScale
+			targetContent.width.baseVal.value,
+			targetContent.height.baseVal.value
 		]
 	)
 	socket.send(message)

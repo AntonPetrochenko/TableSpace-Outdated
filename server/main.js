@@ -98,6 +98,12 @@ app.ws('/ws',function(ws,req) { //Реализация функционала р
 			broadcastAll(["DeleteObject",message[1]])
 			delete tableObjects[message[1]]
 		}
+		if (message[0] == "UpdateSize") {
+			broadcastOthers(["UpdateScale",message[1],message[2],message[3]],ws)
+			tableObjects[message[1]].displayWidth = message[2]
+			tableObjects[message[1]].displayHeight = message[3]
+			
+		}
 		if (message[0] == "ObjectMove") {
 			broadcastOthers([
 				"ObjectMove",
