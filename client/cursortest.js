@@ -12,6 +12,61 @@ var dragInterval
 var dragIntervalObject = {}
 
 tableObjects = []
+pdf = []
+
+
+function loadTestPdf(url) { //load the pdf, create an svg foreignObject, stuff it with a canvas element
+	pdfLoader = pdfjsLib.getDocument(url)
+	pdfLoader.then(createTestPdfRenderer)
+}
+
+function createTestPdfRenderer(pdfObject) {
+
+	newSvg = canvasLayer.group()
+	
+	/*
+	container = newSvg.foreignObject(viewport.width, viewport.height)
+	container.node.appendChild(canvas)
+	container.rx = 0
+	container.ry = 0
+	*/
+	newSvg.contentImage = newSvg.image()
+	newSvg.contentImage.rx = 0
+	newSvg.contentImage.ry = 0
+	
+	
+
+	newSvg.interactionUI = createInteractionUI(newSvg)
+
+	pdfObject.getPage(1).then(page => {
+
+		var canvas = document.createElement('canvas')
+		var viewport = page.getViewport({ scale: 1, });
+
+		canvas.width = viewport.width
+		canvas.height = viewport.height
+		/*
+		container.width(canvas.width)
+		container.height(canvas.height)
+		*/
+
+		var renderCanvasContext = canvas.getContext('2d')
+		var renderContext = {
+			canvasContext: renderCanvasContext,
+			viewport: viewport
+		};
+		
+		page.render(renderContext).then(() => {
+			newSvg.contentImage.load(canvas.toDataURL())
+			makeSyncDraggable(newSvg)
+		});
+		
+		
+	})
+
+	
+	
+}
 
 function toggleDrawer(e) {
 	var drawer = e.parentElement
@@ -164,29 +219,35 @@ function handleNewObjects(objectList) {
 		newSvg.move(object.x,object.y)
 		newSvg.dblclick(showInteractionUI)
 
+		makeSyncDraggable(newSvg)
+
 		newSvg.node.dataset.networkId = object.networkId
 		newSvg.networkId = object.networkId
 		tableObjects[object.networkId] = newSvg
 
 
-		newSvg.draggable().on("dragstart", e => { dragInterval = setInterval(sendDraggablePosition, 50) })
-		newSvg.on("dragend", e => { clearInterval(dragInterval) })
-		newSvg.on("dragmove", e => {
-			const { handler, box, el } = e.detail
-			e.preventDefault()
-			handler.el.move(box.x,box.y)
-			handler.el.children().forEach(
-                e => {
-                	e.move(box.x+e.rx,box.y+e.ry)
-                }
-			)
-			handler.move(box.x, box.y)
-			dragIntervalObject.x = box.x
-			dragIntervalObject.y = box.y
-			dragIntervalObject.element = handler.el
-		})
+		
 
 		newSvg.interactionUI = createInteractionUI(newSvg)
+	})
+}
+
+function makeSyncDraggable(newSvg) {
+	newSvg.draggable().on("dragstart", e => { dragInterval = setInterval(sendDraggablePosition, 50) })
+	newSvg.on("dragend", e => { clearInterval(dragInterval) })
+	newSvg.on("dragmove", e => {
+		const { handler, box, el } = e.detail
+		e.preventDefault()
+		handler.el.move(box.x,box.y)
+		handler.el.children().forEach(
+			e => {
+				e.move(box.x+e.rx,box.y+e.ry)
+			}
+		)
+		//handler.move(box.x, box.y)
+		dragIntervalObject.x = box.x
+		dragIntervalObject.y = box.y
+		dragIntervalObject.element = handler.el
 	})
 }
 
