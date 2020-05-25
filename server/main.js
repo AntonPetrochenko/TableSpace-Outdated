@@ -17,9 +17,37 @@ var storage = multer.diskStorage({
 	}
   })
 var multer_upload = multer({storage: storage})
-var fs = require('fs');
 
-app.use('/uploads',express.static('uploads'))
+
+
+var fs = require('fs');
+//Let's get the show on the road
+//Checking if database directory exists
+if (!fs.existsSync('./db/tablespace.sqlite3')) {
+	fs.mkdirSync('./db')
+	fs.closeSync(fs.openSync('./db/tablespace.sqlite3', 'w'))
+}
+const sqlite3 = require('sqlite3').verbose();
+let db = new sqlite3.Database('./db/tablespace.sqlite3', (err) => {
+	if (err) {
+		console.error(err.message);
+	} else {
+		console.log('Database up and running!');
+	}
+	
+  });
+
+
+
+
+
+//app.use('/uploads',express.static('uploads'))
+
+app.get('/uploads/:path', (req,res,next) => 
+	{
+
+	}
+)
 
 app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, next) => {
 	const file = req.file
@@ -29,10 +57,11 @@ app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, nex
 		return next(error)
 	}
 	res.send("Success")
-	newObject = new PictureBox(file.path) //Временное решение
+	/*newObject = new PictureBox(file.path) //Временное решение
 	tableObjects.push(newObject)
 	newObject.networkId = tableObjects.indexOf(newObject)
-	broadcastAll(["CreateObject",newObject]) 
+	broadcastAll(["CreateObject",newObject]) */
+
   }) )
 
 var expressWs = require('express-ws')(app)
