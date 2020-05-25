@@ -54,3 +54,20 @@ viewport {
     position: absolute;
 }
 
+.filebox {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 10em)
+}
+
+.fileicon {
+    text-align: center;
+}
+
+.fileicon > .icon {
+    font-size: 3em;
+}
+
+.fileicon:hover {
+    background-color: lightblue
+}
+

@@ -12,30 +12,33 @@ var storage = multer.diskStorage({
 	destination: function (req, file, cb) {
 	  cb(null, 'uploads/')
 	},
-	filename: function (req, file, cb) {
-	  cb(null, file.originalname)
-	}
   })
 var multer_upload = multer({storage: storage})
+
 
 
 
 var fs = require('fs');
 //Let's get the show on the road
 //Checking if database directory exists
+var firstStart = false
 if (!fs.existsSync('./db/tablespace.sqlite3')) {
-	fs.mkdirSync('./db')
-	fs.closeSync(fs.openSync('./db/tablespace.sqlite3', 'w'))
+	fs.copyFileSync('./db/db-init.sqlite3','./db/tablespace.sqlite3')
+	firstStart = true //If it doesn't exist assuming this is a fresh install
 }
+
+if (firstStart) {
+	fs.copyFileSync('./db/db-init.sqlite3','./db/tablespace.sqlite3')
+}
+
 const sqlite3 = require('sqlite3').verbose();
 let db = new sqlite3.Database('./db/tablespace.sqlite3', (err) => {
 	if (err) {
 		console.error(err.message);
 	} else {
 		console.log('Database up and running!');
-	}
-	
-  });
+	}	
+});
 
 
 
@@ -45,7 +48,8 @@ let db = new sqlite3.Database('./db/tablespace.sqlite3', (err) => {
 
 app.get('/uploads/:path', (req,res,next) => 
 	{
-
+		//res.setHeader("content-type", "some/type");
+		fs.createReadStream('./uploads/' + req.params.path).pipe(res);
 	}
 )
 
@@ -57,11 +61,13 @@ app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, nex
 		return next(error)
 	}
 	res.send("Success")
-	/*newObject = new PictureBox(file.path) //Временное решение
-	tableObjects.push(newObject)
-	newObject.networkId = tableObjects.indexOf(newObject)
-	broadcastAll(["CreateObject",newObject]) */
-
+	db.run('INSERT INTO files (path, mimetype) VALUES ($path, $type)',{
+				$path: '/uploads/' + file.filename, 
+				$type: file.mimetype
+			},
+		(err) => {console.error(err)
+		}
+	)
   }) )
 
 var expressWs = require('express-ws')(app)
@@ -96,6 +102,14 @@ class PictureBox extends Widget {
 	}
 }
 
+class PdfBox extends Widget {
+	currentPage = 1
+	constructor(filename) {
+		super("pdf") 
+		this.filename = filename
+	}
+}
+
 
 
 app.ws('/ws',function(ws,req) { //Реализация функционала реального времени начинается здесь
@@ -118,10 +132,28 @@ app.ws('/ws',function(ws,req) { //Реализация функционала р
 			)
 		}
 		if (message[0] == "CreateObject") {
-			newObject = new PictureBox(message[1])
-			tableObjects.push(newObject)
-			newObject.networkId = tableObjects.indexOf(newObject)
-			broadcastAll(["CreateObject",newObject])
+			objectId = message[1]
+			object = db.get("SELECT * FROM files WHERE id = ?",[objectId],(err,row) => {
+				if (err) {
+					console.error(error.message);
+					return
+				}	
+				console.log("Requested a " + row.mimetype)	
+				var newObject		
+				if (row.mimetype.indexOf('image/') > -1) {
+					newObject = new PictureBox(row.path)
+				}
+				if (row.mimetype == "application/pdf") {
+					newObject = new PdfBox(row.path)
+				}
+				if (newObject) {
+					tableObjects.push(newObject)
+					newObject.networkId = tableObjects.indexOf(newObject)
+					broadcastAll(["CreateObject",newObject])
+				} else {
+					//unsupported mimetype
+				}
+			})
 		}
 		if (message[0] == "DeleteObject") {
 			broadcastAll(["DeleteObject",message[1]])
@@ -142,6 +174,26 @@ app.ws('/ws',function(ws,req) { //Реализация функционала р
 			],ws)
 			tableObjects[message[1]].x = message[2]
 			tableObjects[message[1]].y = message[3]
+		}
+		if (message[0] == "RequestFiles") {
+			db.all("SELECT * from files", [], (err, rows) => {
+				filesArray = []
+				if (err) {
+					console.log('Error during FileList construction')
+					console.error(err.message)
+					return;
+				}
+				rows.forEach((row) => {
+					filesArray.push({
+						id: row.id,
+						timestamp: row.creationTimestamp,
+						name: row.displayName
+					})
+				});
+				sendPacket(ws,["FileList",filesArray])
+			  });
+
+			
 		}
 	});
 	ws.on('close', function handleClose() {

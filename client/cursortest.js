@@ -20,52 +20,10 @@ function loadTestPdf(url) { //load the pdf, create an svg foreignObject, stuff i
 	pdfLoader.then(createTestPdfRenderer)
 }
 
-function createTestPdfRenderer(pdfObject) {
+function createPdfRenderer(pdfObject) {
 
 	newSvg = canvasLayer.group()
-	
-	/*
-	container = newSvg.foreignObject(viewport.width, viewport.height)
-	container.node.appendChild(canvas)
-	container.rx = 0
-	container.ry = 0
-	*/
-	newSvg.contentImage = newSvg.image()
-	newSvg.contentImage.rx = 0
-	newSvg.contentImage.ry = 0
-	
-	
-
 	newSvg.interactionUI = createInteractionUI(newSvg)
-
-	pdfObject.getPage(1).then(page => {
-
-		var canvas = document.createElement('canvas')
-		var viewport = page.getViewport({ scale: 1, });
-
-		canvas.width = viewport.width
-		canvas.height = viewport.height
-		/*
-		container.width(canvas.width)
-		container.height(canvas.height)
-		*/
-
-		var renderCanvasContext = canvas.getContext('2d')
-		var renderContext = {
-			canvasContext: renderCanvasContext,
-			viewport: viewport
-		};
-		
-		page.render(renderContext).then(() => {
-			newSvg.contentImage.load(canvas.toDataURL())
-			makeSyncDraggable(newSvg)
-		});
-		
-		
-	})
-
-	
-	
 }
 
 function toggleDrawer(e) {
@@ -142,14 +100,14 @@ function addObject() {
 }
 
 
-function initcursors() {
+function init() {
 
 	chatBox = document.getElementById("chatinput")
 	chatLayer = document.getElementById("chatport")
 	canvasLayer = SVG('#viewport')
 	document.body.addEventListener('mousemove',updateCursorPosition)
 	
-	socket = new WebSocket("ws://" + document.getElementById("ip").value + ":31442/ws")
+	socket = new WebSocket("ws://" + document.domain + ":31442/ws")
 	socket.onmessage = function (reply) {
 		message = JSON.parse(reply.data)
 		if (message[0] == "HELO!") {
@@ -193,6 +151,20 @@ function initcursors() {
 			targetContent.width.baseVal.value = message[2]
 			targetContent.height.baseVal.value = message[3]
 		}
+
+		if (message[0] == "FileList") {
+			console.log(message)
+			
+			fileContainer = document.getElementById('filebox')
+			fileContainer.htmlContent = ""
+			message[1].forEach(fileData => {
+				newFileIcon = document.querySelector('#FileIcon').content.cloneNode(true)
+				newFileIcon.querySelector('.displayname').textContent = fileData.name
+				newFileIcon.querySelector('.datecreated').textContent = fileData.timestamp
+				newFileIcon.firstElementChild.dataset.id = fileData.id
+				fileContainer.appendChild(newFileIcon)
+			})
+		}
 }
 
 	
@@ -204,6 +176,7 @@ function handleNewObjects(objectList) {
 		newSvg = canvasLayer.group()
 
 		newSvg.currentScale = object.currentScale
+		newSvg.contentType = object.type
 		if (object.type == "picture") {
 			image = newSvg.image(object.filename)
 
@@ -216,6 +189,23 @@ function handleNewObjects(objectList) {
 			image.ry = 0
 		}
 
+		if (object.type == "pdf") {
+			
+			newSvg.contentImage = newSvg.image()
+			newSvg.contentImage.rx = 0
+			newSvg.contentImage.ry = 0
+			newSvg.currentPage = object.currentPage
+			
+			pdfLoader = pdfjsLib.getDocument(object.filename)
+			newSvg.loaderPromise = pdfLoader.promise
+
+			newSvg.loaderPromise.then(function (pdfObject) {
+				this.pdfContent = pdfObject
+				setPdfPage(this,1)
+			}.bind(newSvg))
+			
+		}
+
 		newSvg.move(object.x,object.y)
 		newSvg.dblclick(showInteractionUI)
 
@@ -225,11 +215,33 @@ function handleNewObjects(objectList) {
 		newSvg.networkId = object.networkId
 		tableObjects[object.networkId] = newSvg
 
-
-		
-
 		newSvg.interactionUI = createInteractionUI(newSvg)
+		newSvg.interactionUI.front()
 	})
+}
+
+function setPdfPage(targetSvg,page) {
+	pdfObject = targetSvg.pdfContent
+	pdfObject.getPage(page).then(page => 
+		{
+		var canvas = document.createElement('canvas')
+		var viewport = page.getViewport({ scale: 1, });
+
+		canvas.width = viewport.width
+		canvas.height = viewport.height
+
+		var renderCanvasContext = canvas.getContext('2d')
+		var renderContext = {
+			canvasContext: renderCanvasContext,
+			viewport: viewport
+		};
+		
+		page.render(renderContext).promise.then(() => 
+			{
+				targetSvg.contentImage.load(canvas.toDataURL())
+			});
+		}
+	)
 }
 
 function makeSyncDraggable(newSvg) {
@@ -270,7 +282,7 @@ function createInteractionUI(target) {
 	interactionUI.ry = 10
 	interactionUI.move(target.children()[0].x()+10,target.children()[0].y()+10)
 
-	buttonTemplate = document.querySelector('#InteractionUI')
+	buttonTemplate = document.querySelector('#InteractionUI-'+target.contentType)
 	interactionUI.node.dataset.networkId = target.networkId
 	interactionUI.add(buttonTemplate.content.cloneNode(true))
 
@@ -280,11 +292,11 @@ function createInteractionUI(target) {
 }
 
 function showInteractionUI() {
-	this.interactionUI.animate(700,0,'now').ease('<').attr({width: 100, height: 500})
+	this.interactionUI.animate(200,0,'now').ease('<').attr({width: 100, height: 180})
 }
 
 function hideInteractionUI(target) {
-	tableObjects[target.parentElement.dataset.networkId].interactionUI.animate(700,0,'now').ease('<').attr({width: 100, height: 0})
+	tableObjects[target.parentElement.dataset.networkId].interactionUI.animate(200,0,'now').ease('<').attr({width: 100, height: 0})
 }
 
 function buttonDeleteObject(button) {
@@ -341,6 +353,31 @@ function buttonScaleDown(button) {
 	socket.send(message)
 }
 
+function changePdfPage(button,pageOffset) {
+	targetNetworkId = Number(button.parentElement.dataset.networkId)
+	targetElement = tableObjects[targetNetworkId]
+	targetElement.currentPage += pageOffset
+	setPdfPage(targetElement,targetElement.currentPage + pageOffset)
+}
+
+function requestFiles() {
+	message = JSON.stringify(
+		[
+			"RequestFiles"
+		]
+	)
+	socket.send(message)
+}
+
+function requestObjectCreation(e) {
+	message = JSON.stringify(
+		[
+			"CreateObject",
+			Number(e.dataset.id)
+		]
+	)
+	socket.send(message)
+}
 
 const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
 window.addEventListener('resize', appHeight)
