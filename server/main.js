@@ -5,11 +5,15 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next)
 
+var bcrypt = require('bcrypt')
+var hat = require('hat')
+
 var express = require('express')
 var app = express()
 
 var multer = require('multer')
-
+var cookieparser = require('cookie-parser')
+app.use(cookieparser())
 var storage = multer.diskStorage({
 	destination: function (req, file, cb) {
 	  cb(null, 'uploads/')
@@ -31,6 +35,7 @@ if (!fs.existsSync('./db/tablespace.sqlite3')) {
 
 if (firstStart) {
 	//Copy the default database template
+	console.log('Assuming furst launch: tablespace.sqlite3 is missing, copying database from db-init.sqlite3')
 	fs.copyFileSync('./db/db-init.sqlite3','./db/tablespace.sqlite3')
 }
 
@@ -49,9 +54,60 @@ let db = new sqlite3.Database('./db/tablespace.sqlite3', (err) => {
 
 //app.use('/uploads',express.static('uploads'))
 
-app.get('/uploads/:path', (req,res,next) => 
+app.post('/api/:requesttype',multer_upload.none(), (req,res,next) => 
 	{
-		//res.setHeader("content-type", "some/type");
+		if (req.params.requesttype == "adduser")
+		{
+			console.log("Someone's adding a user")
+			bcrypt.hash(req.body.password, 10, function(err, hash) {
+				db.run('INSERT INTO users (displayName,login,passwordHash,permissionLevel,connectPermissions,color,userGroup) VALUES ($displayName,$login,$passwordHash,$permissionLevel,$connectPermissions,$color,$userGroup)',{
+					$displayName: "Новый пользователь",
+					$login: req.body.login,
+					$passwordHash: hash,
+					$permissionLevel: 0,
+					$connectPermissions: 1,
+					$color: "#0000FF",
+					$userGroup: 1
+				})
+				res.json({
+					status: "Success"
+				})
+			});
+		}
+		if (req.params.requesttype == "login") {
+			console.log("Someone's logging in...")
+			db.get('SELECT id, login, passwordHash FROM users WHERE login = $login',{
+				$login: req.body.login
+			},
+			(err,row) => 
+			{
+				if (row) {
+					bcrypt.compare(req.body.password, row.passwordHash, function(err, result) {
+						if (result) {
+							token = hat()
+							res.cookie('token',token)
+							db.run('UPDATE users SET authToken = $token WHERE id = $id',{
+								$token: token,
+								$id: row.id
+							})
+							res.json({
+								status: "Success"
+							})
+							console.log('...successfully!')
+						} else {
+							console.log('Incorrect password!')
+						}
+					});
+				} else {
+					console.log('No such user!')
+				}
+			})
+		}
+	}
+) 
+
+app.get('/uploads/:path',multer_upload.any(), (req,res,next) => 
+	{
 		fs.createReadStream('./uploads/' + req.params.path).pipe(res);
 	}
 )
@@ -110,7 +166,42 @@ class PdfBox extends Widget {
 
 
 app.ws('/ws',function(ws,req) { //Real time functionality starts here
-	
+	console.log(JSON.stringify(req.cookies))
+
+	db.get('SELECT * FROM users WHERE authToken = $token',{
+		$token: req.cookies.token
+	},(err,row) => {
+		if (row) {
+			ws.user = row
+			//Building the HELO! packet
+			//includes current user list and current table objects
+			userlist = []
+			connections.forEach( (connection,index) => {
+					userlist.push([
+						index]
+					)
+				}
+			)
+			
+			
+			connectionMessage = [
+				"HELO!",
+				userlist,
+				tableObjects
+			]
+			connections.push(ws)
+			console.log(connections.indexOf(ws))
+			sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest
+			broadcastOthers([
+							'UserJoin',
+							[connections.indexOf(ws)],
+						],ws)
+			console.log('Sent HELO!')
+		} else {
+			console.log('Someone attempted unauthorized access!')
+			ws.close()
+		}
+	})
 	ws.on('message', async function incoming(message) { //Network packet handlers
 		message = JSON.parse(message)
 		if (message[0] == "CursorMove") { 
@@ -204,30 +295,6 @@ app.ws('/ws',function(ws,req) { //Real time functionality starts here
 		delete connections[leavingUser]
 	})
 	
-	//Building the HELO! packet
-	//includes current user list and current table objects
-	userlist = []
-	connections.forEach( (connection,index) => {
-			userlist.push([
-				index]
-			)
-		}
-	)
-	
-	
-	connectionMessage = [
-		"HELO!",
-		userlist,
-		tableObjects
-	]
-	connections.push(ws)
-	console.log(connections.indexOf(ws))
-	sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest
-	broadcastOthers([
-					'UserJoin',
-					[connections.indexOf(ws)],
-				],ws)
-	console.log('Sent HELO!')
 });
 
 //Packet helper functions

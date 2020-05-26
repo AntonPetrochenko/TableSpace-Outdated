@@ -15,6 +15,10 @@ tableObjects = []
 pdf = []
 
 
+function nothing() {
+	console.log('Did nothing')
+}
+
 function loadTestPdf(url) { //load the pdf, create an svg foreignObject, stuff it with a canvas element
 	pdfLoader = pdfjsLib.getDocument(url)
 	pdfLoader.then(createTestPdfRenderer)
@@ -156,7 +160,7 @@ function init() {
 			console.log(message)
 			
 			fileContainer = document.getElementById('filebox')
-			fileContainer.htmlContent = ""
+			fileContainer.textContent = ""
 			message[1].forEach(fileData => {
 				newFileIcon = document.querySelector('#FileIcon').content.cloneNode(true)
 				newFileIcon.querySelector('.displayname').textContent = fileData.name
