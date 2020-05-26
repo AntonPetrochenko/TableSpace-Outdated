@@ -1,3 +1,5 @@
+
+//helper function but not sure i'll be using it at all
 const asyncHandler = fn => (req, res, next) =>
   Promise
     .resolve(fn(req, res, next))
@@ -28,6 +30,7 @@ if (!fs.existsSync('./db/tablespace.sqlite3')) {
 }
 
 if (firstStart) {
+	//Copy the default database template
 	fs.copyFileSync('./db/db-init.sqlite3','./db/tablespace.sqlite3')
 }
 
@@ -70,12 +73,12 @@ app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, nex
 	)
   }) )
 
+//Initializing WebSocket against app
 var expressWs = require('express-ws')(app)
 
 app.use('/',express.static('../client'))
 
-//const wss = new WebSocket.Server(,"TableSpace");
-clientIdIncrement = 0;
+clientIdIncrement = 0; //Is this used?
 
 connections = []
 tableObjects = []
@@ -86,12 +89,6 @@ class Widget {
 	constructor(type) {
 		this.type = type
 		this.currentScale = 1
-	}
-}
-
-class DebugBox extends Widget {
-	constructor() {
-		super("debug_box")
 	}
 }
 
@@ -112,9 +109,9 @@ class PdfBox extends Widget {
 
 
 
-app.ws('/ws',function(ws,req) { //Реализация функционала реального времени начинается здесь
+app.ws('/ws',function(ws,req) { //Real time functionality starts here
 	
-	ws.on('message', async function incoming(message) { //Обработчики сетевых пакетов
+	ws.on('message', async function incoming(message) { //Network packet handlers
 		message = JSON.parse(message)
 		if (message[0] == "CursorMove") { 
 			broadcastOthers([
@@ -207,8 +204,8 @@ app.ws('/ws',function(ws,req) { //Реализация функционала р
 		delete connections[leavingUser]
 	})
 	
-	//Конструирование HELO! пакета для информирования клиентской части
-	//о состоянии виртуального стола на момент подключения
+	//Building the HELO! packet
+	//includes current user list and current table objects
 	userlist = []
 	connections.forEach( (connection,index) => {
 			userlist.push([
@@ -225,16 +222,21 @@ app.ws('/ws',function(ws,req) { //Реализация функционала р
 	]
 	connections.push(ws)
 	console.log(connections.indexOf(ws))
-	sendPacket(ws,connectionMessage); //HELO! был отправлен, отправляем остальным пользователям UserJoin
+	sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest
 	broadcastOthers([
 					'UserJoin',
 					[connections.indexOf(ws)],
 				],ws)
 	console.log('Sent HELO!')
-	
-	
-
 });
+
+//Packet helper functions
+
+function sendPacket(ws,message) {
+	if (ws.readyState == 1) {
+		ws.send(JSON.stringify(message))
+	}
+}
 
 function broadcastOthers(message,sender) {
 	connections.forEach( (client, index) => {
@@ -251,10 +253,5 @@ function broadcastAll(message) {
 	)
 }
 
-function sendPacket(ws,message) {
-	if (ws.readyState == 1) {
-		ws.send(JSON.stringify(message))
-	}
-}
 
 app.listen(31442)
