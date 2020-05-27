@@ -36,6 +36,7 @@ viewport {
     transition-duration: 0.5s;
     transition-timing-function: ease-out;
     background-color: white;
+    z-index: 100;
 }
 
 .drawer.drawer-top, .drawer.drawer-bottom {
@@ -52,6 +53,17 @@ viewport {
 
 .drawer-handle {
     position: absolute;
+}
+
+.drawer-handle > button {
+    position: relative;
+    transition-property: top;
+    transition-duration: 0.1s;
+    top: 5px;
+}
+
+.drawer-handle > button:hover {
+    top: 15px;
 }
 
 .filebox {

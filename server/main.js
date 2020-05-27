@@ -7,7 +7,8 @@ const asyncHandler = fn => (req, res, next) =>
 
 var bcrypt = require('bcrypt')
 var hat = require('hat')
-
+var http = require('http')
+var https = require('https')
 var express = require('express')
 var app = express()
 
@@ -36,7 +37,7 @@ if (!fs.existsSync('./db/tablespace.sqlite3')) {
 if (firstStart) {
 	//Copy the default database template
 	console.log('Assuming furst launch: tablespace.sqlite3 is missing, copying database from db-init.sqlite3')
-	fs.copyFileSync('./db/db-init.sqlite3','./db/tablespace.sqlite3')
+	//there's a bunch of stuff we'll need to do on first start later on
 }
 
 const sqlite3 = require('sqlite3').verbose();
@@ -47,6 +48,105 @@ let db = new sqlite3.Database('./db/tablespace.sqlite3', (err) => {
 		console.log('Database up and running!');
 	}	
 });
+
+class Group {
+	id
+	displayName
+	#canVideo
+	#canAudio
+	#canChat
+	#canTable
+	constructor(id,displayName,canVideo,canAudio,canChat,canTable) {
+		this.id = id
+		this.displayName = displayName
+		this.#canVideo = canVideo
+		this.#canAudio = canAudio
+		this.#canChat =  canChat
+		this.#canTable = canTable
+	}
+	get() {
+		return {
+			canVideo: this.#canVideo,
+			canAudio: this.#canAudio,
+			canChat : this.#canChat ,
+			canTable: this.#canTable
+		}
+	}
+	fetch() {
+		db.get('SELECT * FROM groups WHERE id = $id',{$id: this.id},(err, row) => {
+			this.displayName = row.displayName
+			this.#canVideo = row.canVideo
+			this.#canAudio = row.canAudio
+			this.#canChat =  row.canChat
+			this.#canTable = row.canTable
+		})
+	}
+}
+
+
+class User {
+	id
+	displayName
+	adminPermissions
+	connectPermissions
+	color
+	profilePicturePath
+	#group
+	constructor(id,displayName,adminPermissions,connectPermissions,color,profilePicturePath,group) {
+		this.id = id
+		this.displayName = displayName
+		this.adminPermissions = adminPermissions
+		this.connectPermissions = connectPermissions
+		this.color = color
+		this.profilePicturePath = profilePicturePath
+		this.#group = group
+	}
+	getPermissions() {
+		if (this.#group) {
+			return this.#group.get()
+		} else {
+			return {
+				canVideo: false,
+				canAudio: false,
+				canChat: false,
+				canTable: false,
+			}
+		}
+	}
+}
+var groupList = []
+
+db.serialize(() => {
+	db.all('SELECT * FROM groups',(err,rows) => {
+		rows.forEach(row => {
+			groupList[row.id] = new Group(
+				row.id,
+				row.displayName,
+				row.canVideo,
+				row.canAudio,
+				row.canChat,
+				row.canTable
+			)
+		})
+		console.log('Loaded permission groups')
+		if (fs.existsSync('fullchain.pem') && fs.existsSync('privkey.pem')) {
+			var privateKey  = fs.readFileSync('privkey.pem', 'utf8');
+			var certificate = fs.readFileSync('fullchain.pem', 'utf8');
+			console.log('Found fullchain.pem and privkey.pem')
+			server = https.createServer({key: privateKey, cert: certificate},app).listen(31443)
+			//Initializing WebSocket against app
+			var expressWs = require('express-ws')(app,server)
+			app.ws('/ws',handleWebsocket);
+		} else {
+			server = http.createServer(app).listen(31442)
+			var expressWs = require('express-ws')(app,server)
+			app.ws('/ws',handleWebsocket);
+			console.error('Warning: Missing privkey.pem and/or fullchain.pem, starting in NON-SECURE MODE. Audio/video communication is not available!')
+			console.log('Warning: Missing privkey.pem and/or fullchain.pem, starting in NON-SECURE MODE. Audio/video communication is not available!')
+		}
+		
+	})
+})
 
 
 
@@ -93,7 +193,7 @@ app.post('/api/:requesttype',multer_upload.none(), (req,res,next) =>
 							res.json({
 								status: "Success"
 							})
-							console.log('...successfully!')
+							console.log('Given an access token to ' + req.body.login)
 						} else {
 							console.log('Incorrect password!')
 						}
@@ -129,8 +229,7 @@ app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, nex
 	)
   }) )
 
-//Initializing WebSocket against app
-var expressWs = require('express-ws')(app)
+
 
 app.use('/',express.static('../client'))
 
@@ -165,14 +264,119 @@ class PdfBox extends Widget {
 
 
 
-app.ws('/ws',function(ws,req) { //Real time functionality starts here
-	console.log(JSON.stringify(req.cookies))
+async function ws_incoming(message) { //Network packet handlers
+	ws = this
+	message = JSON.parse(message)
+	if (message[0] == "CursorMove") { 
+		broadcastOthers([
+						'CursorMove',
+				 connections.indexOf(ws),
+				 message[1]
+				],ws)
+
+	}
+	if (message[0] == "ChatMessage") {
+		broadcastAll([
+				  'ChatMessage',
+				   message[1]
+				 ]
+		)
+	}
+	if (message[0] == "CreateObject") {
+		objectId = message[1]
+		object = db.get("SELECT * FROM files WHERE id = ?",[objectId],(err,row) => {
+			if (err) {
+				console.error(error.message);
+				return
+			}	
+
+			console.log("Requested a " + row.mimetype)	
+			var newObject	
+
+			if (row.mimetype.indexOf('image/') > -1) {
+				newObject = new PictureBox(row.path)
+			}
+			if (row.mimetype == "application/pdf") {
+				newObject = new PdfBox(row.path)
+			}
+
+			if (newObject) {
+				tableObjects.push(newObject)
+				newObject.networkId = tableObjects.indexOf(newObject)
+				broadcastAll(["CreateObject",newObject])
+			} else {
+				//unsupported mimetype
+			}
+		})
+	}
+	if (message[0] == "DeleteObject") {
+		broadcastAll(["DeleteObject",message[1]])
+		delete tableObjects[message[1]]
+	}
+	if (message[0] == "UpdateSize") {
+		broadcastOthers(["UpdateScale",message[1],message[2],message[3]],ws)
+		tableObjects[message[1]].displayWidth = message[2]
+		tableObjects[message[1]].displayHeight = message[3]
+		
+	}
+	if (message[0] == "ObjectMove") {
+		broadcastOthers([
+			"ObjectMove",
+			message[1],
+			message[2],
+			message[3]
+		],ws)
+		tableObjects[message[1]].x = message[2]
+		tableObjects[message[1]].y = message[3]
+	}
+	if (message[0] == "RequestFiles") {
+		db.all("SELECT * from files", [], (err, rows) => {
+			filesArray = []
+			if (err) {
+				console.log('Error during FileList construction')
+				console.error(err.message)
+				return;
+			}
+			rows.forEach((row) => {
+				filesArray.push({
+					id: row.id,
+					timestamp: row.creationTimestamp,
+					name: row.displayName
+				})
+			});
+			sendPacket(ws,["FileList",filesArray])
+		  });
+
+		
+	}
+}
+
+function ws_handleClose(ws) {
+	leavingUser = connections.indexOf(this)
+	
+	broadcastAll([
+			'UserLeft',
+			leavingUser
+		])
+	
+	delete connections[leavingUser]
+}
+
+function handleWebsocket(ws,req) { //Real time functionality starts here
 
 	db.get('SELECT * FROM users WHERE authToken = $token',{
 		$token: req.cookies.token
 	},(err,row) => {
 		if (row) {
-			ws.user = row
+			ws.user = new User(
+				row.id,
+				row.displayName,
+				row.adminPermissions,
+				row.connectPermissions,
+				row.color,
+				row.profilePicturePath,
+				groupList[row.userGroup]
+			)
 			//Building the HELO! packet
 			//includes current user list and current table objects
 			userlist = []
@@ -182,120 +386,27 @@ app.ws('/ws',function(ws,req) { //Real time functionality starts here
 					)
 				}
 			)
-			
-			
 			connectionMessage = [
 				"HELO!",
 				userlist,
 				tableObjects
 			]
 			connections.push(ws)
-			console.log(connections.indexOf(ws))
 			sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest
 			broadcastOthers([
 							'UserJoin',
 							[connections.indexOf(ws)],
 						],ws)
-			console.log('Sent HELO!')
+			console.log('Accepted connection from user ' + row.login)
 		} else {
 			console.log('Someone attempted unauthorized access!')
 			ws.close()
 		}
 	})
-	ws.on('message', async function incoming(message) { //Network packet handlers
-		message = JSON.parse(message)
-		if (message[0] == "CursorMove") { 
-			broadcastOthers([
-			       		 'CursorMove',
-					 connections.indexOf(ws),
-					 message[1]
-					],ws)
-
-		}
-		if (message[0] == "ChatMessage") {
-			broadcastAll([
-				      'ChatMessage',
-				       message[1]
-				     ]
-			)
-		}
-		if (message[0] == "CreateObject") {
-			objectId = message[1]
-			object = db.get("SELECT * FROM files WHERE id = ?",[objectId],(err,row) => {
-				if (err) {
-					console.error(error.message);
-					return
-				}	
-				console.log("Requested a " + row.mimetype)	
-				var newObject		
-				if (row.mimetype.indexOf('image/') > -1) {
-					newObject = new PictureBox(row.path)
-				}
-				if (row.mimetype == "application/pdf") {
-					newObject = new PdfBox(row.path)
-				}
-				if (newObject) {
-					tableObjects.push(newObject)
-					newObject.networkId = tableObjects.indexOf(newObject)
-					broadcastAll(["CreateObject",newObject])
-				} else {
-					//unsupported mimetype
-				}
-			})
-		}
-		if (message[0] == "DeleteObject") {
-			broadcastAll(["DeleteObject",message[1]])
-			delete tableObjects[message[1]]
-		}
-		if (message[0] == "UpdateSize") {
-			broadcastOthers(["UpdateScale",message[1],message[2],message[3]],ws)
-			tableObjects[message[1]].displayWidth = message[2]
-			tableObjects[message[1]].displayHeight = message[3]
-			
-		}
-		if (message[0] == "ObjectMove") {
-			broadcastOthers([
-				"ObjectMove",
-				message[1],
-				message[2],
-				message[3]
-			],ws)
-			tableObjects[message[1]].x = message[2]
-			tableObjects[message[1]].y = message[3]
-		}
-		if (message[0] == "RequestFiles") {
-			db.all("SELECT * from files", [], (err, rows) => {
-				filesArray = []
-				if (err) {
-					console.log('Error during FileList construction')
-					console.error(err.message)
-					return;
-				}
-				rows.forEach((row) => {
-					filesArray.push({
-						id: row.id,
-						timestamp: row.creationTimestamp,
-						name: row.displayName
-					})
-				});
-				sendPacket(ws,["FileList",filesArray])
-			  });
-
-			
-		}
-	});
-	ws.on('close', function handleClose() {
-		leavingUser = connections.indexOf(ws)
-		
-		broadcastAll([
-				'UserLeft',
-				leavingUser
-			])
-		
-		delete connections[leavingUser]
-	})
+	ws.on('message', ws_incoming);
+	ws.on('close', ws_handleClose)
 	
-});
+}
 
 //Packet helper functions
 
@@ -319,6 +430,3 @@ function broadcastAll(message) {
 		}
 	)
 }
-
-
-app.listen(31442)
