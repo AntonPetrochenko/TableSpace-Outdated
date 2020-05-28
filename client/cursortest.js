@@ -11,6 +11,12 @@ var activeInteractionUIOwner
 var dragInterval
 var dragIntervalObject = {}
 
+var drawToolState = {
+	drawing: true,
+	stroke: { color: '#f06', opacity: 0.6, width: 5 },
+	fill: {color: '#00f'}
+}
+
 tableObjects = []
 pdf = []
 userCursors = []
@@ -35,6 +41,29 @@ var userInterface = {
 			drawer.classList.remove("shown")
 			drawer.classList.add("hidden")
 		}
+	},
+	updatePermissions() {
+		//we have canChat, canTable, canVideo and canAudio and separately adminPermissions
+		document.querySelector('#drawer-handle-userSettings').classList.remove('notAllowed')
+		if (user.permissions.canTable) {
+			document.querySelector('#buttonPanel-tableButtons').classList.remove('notAllowed')
+			document.querySelector('#drawer-handle-files').classList.remove('notAllowed')
+		} else {
+			document.querySelector('#buttonPanel-tableButtons').classList.add('notAllowed')
+			document.querySelector('#drawer-handle-files').classList.add('notAllowed')
+		}
+
+		if (user.adminPermissions > 0) {
+			document.querySelector('#drawer-handle-userList').classList.remove('notAllowed')
+		} else {
+			document.querySelector('#drawer-handle-userList').classList.add('notAllowed')
+		}
+
+		if (user.adminPermissions > 1) {
+			document.querySelector('#drawer-handle-roomSettings').classList.remove('notAllowed')
+		} else {
+			document.querySelector('#drawer-handle-roomSettings').classList.add('notAllowed')
+		}
 	}
 }
 
@@ -52,7 +81,13 @@ var networking = {
 			socket.send(message)
 		}
 	},
-	
+	parseBooleanString: function parseBooleanString(string) {
+		if (string == "true") {
+			return true
+		} else {
+			return false
+		}
+	},
 	sendDraggablePosition: function sendDraggablePosition() {
 		message = JSON.stringify([
 			"ObjectMove",
@@ -184,21 +219,31 @@ var tableObjectControl = {
 	},
 
 	makeSyncDraggable: function makeSyncDraggable(newSvg) {
-		newSvg.draggable().on("dragstart", e => { dragInterval = setInterval(networking.sendDraggablePosition, 50) })
-		newSvg.on("dragend", e => { clearInterval(dragInterval) })
+		newSvg.draggable().on("dragstart", e => { 
+			if (user.permissions.canTable && !drawToolState.drawing) {
+				dragInterval = setInterval(networking.sendDraggablePosition, 50) 
+			}
+		})
+		newSvg.on("dragend", e => { 
+			if (user.permissions.canTable && !drawToolState.drawing) {
+				clearInterval(dragInterval) 
+			}
+		})
 		newSvg.on("dragmove", e => {
-			const { handler, box, el } = e.detail
-			e.preventDefault()
-			handler.el.move(box.x,box.y)
-			handler.el.children().forEach(
-				e => {
-					e.move(box.x+e.rx,box.y+e.ry)
-				}
-			)
-			//handler.move(box.x, box.y)
-			dragIntervalObject.x = box.x
-			dragIntervalObject.y = box.y
-			dragIntervalObject.element = handler.el
+			if (user.permissions.canTable && !drawToolState.drawing) {
+				const { handler, box, el } = e.detail
+				e.preventDefault()
+				handler.el.move(box.x,box.y)
+				handler.el.children().forEach(
+					e => {
+						e.move(box.x+e.rx,box.y+e.ry)
+					}
+				)
+				//handler.move(box.x, box.y)
+				dragIntervalObject.x = box.x
+				dragIntervalObject.y = box.y
+				dragIntervalObject.element = handler.el
+			}
 		})
 	},
 
@@ -339,6 +384,8 @@ function init() {
 			user.displayName = message[3]
 			user.color = message[4]
 			user.permissions = message[5]
+			user.adminPermissions = message[6]
+			userInterface.updatePermissions()
 			tableObjectControl.handleNewObjects(message[2])
 			setInterval(networking.sendCursorPosition,100)
 			return
@@ -355,7 +402,8 @@ function init() {
 			delete userCursors[message[1]]
 		}
 		if (message[0] == "ChatMessage") {
-			chatLayer.innerHTML = chatLayer.innerHTML + `<div> ${message[1]} </div>`
+			chatLayer.innerHTML = chatLayer.innerHTML + `<div class="chat-message"> <span style="color:${message[3]}"> [${message[2]}]</span>: ${message[1]} </div>`
+			chatLayer.scrollTop = chatLayer.scrollHeight
 		}
 		if (message[0] == "CreateObject") {
 			newObject = message[1]

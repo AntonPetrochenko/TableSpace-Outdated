@@ -19,7 +19,16 @@ viewport {
     display: flex;
     position: absolute;
     bottom: 10px;
+    transition: bottom 0.5s ease;
     flex-direction: row;
+}
+
+.buttonpanel.tablebButtons {
+    left: 0px;
+}
+
+.buttonpanel.notAllowed {
+    bottom: -50px;
 }
 
 .viewport {
@@ -59,7 +68,14 @@ viewport {
     position: relative;
     transition-property: top;
     transition-duration: 0.1s;
-    top: 5px;
+    top: 7px;
+}
+
+.drawer-handle > button.notAllowed {
+    position: relative;
+    transition-property: top;
+    transition-duration: 0.1s;
+    top: -50px;
 }
 
 .drawer-handle > button:hover {
@@ -83,3 +99,16 @@ viewport {
     background-color: lightblue
 }
 
+.chat-window {
+    display:flex;
+    flex-direction:column;
+    max-height: 30vh;
+    overflow-y: scroll;
+}
+
+.chat-messages {
+    flex: 1;
+    height:100%;
+    display: flex;
+    flex-direction: column-reverse;
+}

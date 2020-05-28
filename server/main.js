@@ -122,10 +122,10 @@ db.serialize(() => {
 			groupList[row.id] = new Group(
 				row.id,
 				row.displayName,
-				row.canVideo,
-				row.canAudio,
-				row.canChat,
-				row.canTable
+				parseBooleanString(row.canVideo),
+				parseBooleanString(row.canAudio),
+				parseBooleanString(row.canChat),
+				parseBooleanString(row.canTable)
 			)
 		})
 		console.log('Loaded permission groups')
@@ -285,8 +285,10 @@ async function ws_incoming(message) { //Network packet handlers
 	}
 	if (message[0] == "ChatMessage") {
 		broadcastAll([
-				  'ChatMessage',
-				   message[1]
+					'ChatMessage',
+					message[1],
+					ws.user.displayName,
+					ws.user.color
 				 ]
 		)
 	}
@@ -334,8 +336,11 @@ async function ws_incoming(message) { //Network packet handlers
 			message[2],
 			message[3]
 		],ws)
-		tableObjects[message[1]].x = message[2]
-		tableObjects[message[1]].y = message[3]
+		if (tableObjects[message[1]]) {
+			tableObjects[message[1]].x = message[2]
+			tableObjects[message[1]].y = message[3]
+		}
+		
 	}
 	if (message[0] == "RequestFiles") {
 		db.all("SELECT * from files", [], (err, rows) => {
@@ -379,7 +384,7 @@ function handleWebsocket(ws,req) { //Real time functionality starts here
 			ws.user = new User(
 				row.id,
 				row.displayName,
-				row.adminPermissions,
+				row.permissionLevel,
 				row.connectPermissions,
 				row.color,
 				row.profilePicturePath,
@@ -400,7 +405,8 @@ function handleWebsocket(ws,req) { //Real time functionality starts here
 				tableObjects,
 				ws.user.displayName,
 				ws.user.color,
-				ws.user.getPermissions()
+				ws.user.getPermissions(),
+				ws.user.adminPermissions
 			]
 			connections.push(ws)
 			sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest
@@ -440,4 +446,12 @@ function broadcastAll(message) {
 			sendPacket(client,message)
 		}
 	)
+}
+
+function parseBooleanString(string) {
+	if (string == "true") {
+		return true
+	} else {
+		return false
+	}
 }

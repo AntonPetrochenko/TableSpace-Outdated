@@ -11,36 +11,32 @@
 		<script src="cursortest.js"></script>
 	</head>
 	<body style="background-image: url(bg.jpg); backdrop-filter: brightness(45%)">
-		<div id="chatport" style="z-index: -999; width: 100%; height: 100vh; position: absolute; margin: 0; padding: 0; left: 0; top: 0;">			
-		</div>
+		
 		<svg id="viewport" class="viewport" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
 			<image width="1600" height="900" xlink:href="bg.jpg" preserveAspectRatio="none"></image>
 		</svg>
-		
-		
-		<div class="card-body drawer drawer-top hidden">
-			<h6>Временное меню</h6>
-			<div class=form-inline>
-				<input class="m-1 form-control" id=ip type=text value="local.cardboardbox.ru"> 
-				<button class="m-1 btn btn-primary" onclick="initcursors()">Connect</button>
-			</div>
-			<div class=form-inline>
-				<input class="m-1 form-control" id=chatinput style="width: 40vw" type=text value=""> 
-				<button class="m-1 btn btn-primary" onclick="networking.sendchat()">Send</button>
-			</div>
-			<button class="m-1 btn btn-primary" onClick="addObject()">+</button>
-			<form data-success-callback="nothing" class="form-inline" action="/upload" method="post" id="fileform" enctype="multipart/form-data">
-				<input type="file" name="upload" />
-				<input class="m-1 btn btn-primary" type="submit" />
-			</form>
+		<div style="position: absolute; margin: 0; padding: 0; bottom: 0; right: 5px;">	
+			<div class="card bg-light mb-3" style="width: 20em">
+				<div class="card-header" data-toggle="collapse" data-target="#chatport">Чат</div>
+				<div  id="chatport" class="chat-window collapse m-1">
 
+				</div>
+				<div class=form-inline>
+					<input class="m-1 form-control" id=chatinput style="width: 40vw" type=text value=""> 
+					<button class="m-1 btn btn-primary" onclick="networking.sendChat()">Отправить</button>
+				</div>
+			  </div>		
+		</div>
+		
+		<div  class="card-body drawer drawer-top hidden">
+			<h6>Временное меню</h6>
 
 			<button type="button" data-toggle="modal" data-target="#loginScreen">Login</button>
 			<button type="button" data-toggle="modal" data-target="#addUser">Add user</button>
 
 			<div class="drawer-handle handle-bottom" onclick="userInterface.toggleDrawer(this)">
-				<button type="button" class="m-1 btn btn-light"> 
-					Временное меню
+				<button id="drawer-handle-userSettings" class="btn btn-light notAllowed" type="button" class="m-1 btn btn-light"> 
+					Настройки пользователя
 				</button>
 			</div>
 			
@@ -50,13 +46,38 @@
 			<div id="filebox" class="m-1 border border-primary rounded filebox">
 				
 			</div>
-			<div class="drawer-handle handle-bottom" style="margin-left: 20%" onclick="userInterface.toggleDrawer(this); networking.requestFiles()">
-				<button type="button" class="m-1 btn btn-light"> 
+			<div class="drawer-handle handle-bottom" style="margin-left: 25%" onclick="userInterface.toggleDrawer(this); networking.requestFiles()">
+				<button id="drawer-handle-files" class="btn btn-light notAllowed" type="button" class="m-1 btn btn-light"> 
 					Файлы
 				</button>
 			</div>
 		</div>
-		<div class="buttonpanel">
+
+		<div class="card-body drawer drawer-top hidden">
+			<h6>Пользователи</h6>
+			<div id="filebox" class="m-1 border border-primary rounded filebox">
+				
+			</div>
+			<div class="drawer-handle handle-bottom" style="margin-left: 50%" onclick="userInterface.toggleDrawer(this); networking.requestFiles()">
+				<button id="drawer-handle-userList" class="btn btn-light notAllowed" type="button" class="m-1 btn btn-light"> 
+					Пользователи
+				</button>
+			</div>
+		</div>
+
+		<div class="card-body drawer drawer-top hidden">
+			<h6>Настройки</h6>
+			<div id="filebox" class="m-1 border border-primary rounded filebox">
+				
+			</div>
+			<div class="drawer-handle handle-bottom" style="margin-left: 75%" onclick="userInterface.toggleDrawer(this); networking.requestFiles()">
+				<button id="drawer-handle-roomSettings" class="btn btn-light notAllowed" type="button" class="m-1 btn btn-light"> 
+					Настройки комнаты
+				</button>
+			</div>
+		</div>
+
+		<div id="buttonPanel-tableButtons" class="buttonpanel tableButtons notAllowed">
 			<button type="button" class="m-1 btn btn-light">
 				<svg class="bi bi-arrows-move" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 					<path fill-rule="evenodd" d="M6.5 8a.5.5 0 00-.5-.5H1.5a.5.5 0 000 1H6a.5.5 0 00.5-.5z" clip-rule="evenodd"/>
