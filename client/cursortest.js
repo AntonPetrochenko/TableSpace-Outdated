@@ -12,9 +12,10 @@ var dragInterval
 var dragIntervalObject = {}
 
 var drawToolState = {
-	drawing: false,
+	drawingMode: true,
+	currentlyDrawing: false,
 	stroke: { color: '#f06', opacity: 0.6, width: 5 },
-	fill: {color: '#00f'}
+	fill: {color: '#00f'},
 }
 
 tableObjects = []
@@ -63,6 +64,50 @@ var userInterface = {
 			document.querySelector('#drawer-handle-roomSettings').classList.remove('notAllowed')
 		} else {
 			document.querySelector('#drawer-handle-roomSettings').classList.add('notAllowed')
+		}
+	},
+	getTransformedCoordinates: function getTransformedCoordinates(x,y) {
+		var m = canvasLayer.node.getScreenCTM();
+		var p = canvasLayer.node.createSVGPoint(); 
+
+		p.x = x//event.clientX;
+		p.y = y//event.clientY;
+		p = p.matrixTransform(m.inverse());
+		return {
+			x: Math.round(p.x*100)/100,
+			y: Math.round(p.y*100)/100
+		}
+	},
+	drawing: {
+		drawMove: function drawMove(event) {
+			if (drawToolState.currentlyDrawing) {
+				let p = userInterface.getTransformedCoordinates(event.clientX,event.clientY)
+				
+				let pointArray = drawToolState.newSvg.array()
+				pointArray.push([p.x,p.y])
+				drawToolState.newSvg.plot(pointArray)
+			}
+		},
+		drawStart: function drawStart(event) {
+			if (drawToolState.drawingMode && user.permissions.canTable) {
+				let drawingTarget = event.target.instance.parent().drawingCanvas
+				if (drawingTarget) {
+					drawToolState.target = drawingTarget
+					
+					let currentMouse = userInterface.getTransformedCoordinates(event.clientX,event.clientY)
+					drawToolState.newSvg = drawingTarget.polyline([currentMouse])
+
+					drawToolState.newSvg.fill({opacity: 0})
+					drawToolState.newSvg.stroke(drawToolState.stroke)
+
+					drawToolState.currentlyDrawing = true
+				}
+			}
+		},
+		drawEnd: function drawStart(event) {
+			delete drawToolState.target
+			delete drawToolState.newSvg
+			drawToolState.currentlyDrawing = false
 		}
 	}
 }
@@ -197,15 +242,20 @@ var tableObjectControl = {
 		
 				newSvg.move(object.x,object.y)
 				newSvg.dblclick(tableObjectControl.interactionUI.show)
-		
+				
 				tableObjectControl.makeSyncDraggable(newSvg)
 		
 				newSvg.node.dataset.networkId = object.networkId
 				newSvg.networkId = object.networkId
 				tableObjects[object.networkId] = newSvg
-		
+				
+
+				newSvg.drawingCanvas = newSvg.group()
+
 				newSvg.interactionUI = tableObjectControl.interactionUI.create(newSvg)
 				newSvg.interactionUI.front()
+
+				
 			}
 		})
 	},
@@ -220,18 +270,18 @@ var tableObjectControl = {
 
 	makeSyncDraggable: function makeSyncDraggable(newSvg) {
 		newSvg.draggable().on("dragstart", e => { 
-			if (user.permissions.canTable && !drawToolState.drawing) {
+			if (user.permissions.canTable && !drawToolState.drawingMode) {
 				dragInterval = setInterval(networking.sendDraggablePosition, 50) 
 			}
 		})
 		newSvg.on("dragend", e => { 
-			if (user.permissions.canTable && !drawToolState.drawing) {
+			if (user.permissions.canTable && !drawToolState.drawingMode) {
 				clearInterval(dragInterval) 
 			}
 		})
 		newSvg.on("dragmove", e => {
 			e.preventDefault()
-			if (user.permissions.canTable && !drawToolState.drawing) {
+			if (user.permissions.canTable && !drawToolState.drawingMode) {
 				const { handler, box, el } = e.detail
 				handler.el.move(box.x,box.y)
 				handler.el.children().forEach(
@@ -367,6 +417,9 @@ function init() {
 	canvasLayer = SVG('#viewport')
 	document.body.addEventListener('mousemove',tableCursorDisplay.updateCursorPosition)
 	
+	document.body.addEventListener('pointermove',makeThrottled(25,userInterface.drawing.drawMove))
+	document.body.addEventListener('pointerdown',userInterface.drawing.drawStart)
+	document.body.addEventListener('pointerup',userInterface.drawing.drawEnd)
 	
 	if (location.protocol === 'https:') {
 		socket = new WebSocket("wss://" + document.domain + ":31443/ws")
@@ -446,3 +499,15 @@ function init() {
 const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
 window.addEventListener('resize', appHeight)
 appHeight()
+
+function makeThrottled(delay, fn) {
+	let lastCall = 0;
+	return function (...args) {
+		const now = (new Date).getTime();
+		if (now - lastCall < delay) {
+		return;
+		}
+		lastCall = now;
+		return fn(...args);
+	}
+}
