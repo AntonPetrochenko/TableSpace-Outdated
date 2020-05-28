@@ -314,6 +314,7 @@ var tableObjectControl = {
 	
 }
 var socket
+var user = {}
 function init() {
 
 	chatBox = document.getElementById("chatinput")
@@ -335,6 +336,9 @@ function init() {
 				tableObjectControl.createUserCursor(cursor)
 				}
 			)
+			user.displayName = message[3]
+			user.color = message[4]
+			user.permissions = message[5]
 			tableObjectControl.handleNewObjects(message[2])
 			setInterval(networking.sendCursorPosition,100)
 			return
