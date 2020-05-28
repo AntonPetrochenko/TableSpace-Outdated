@@ -126,50 +126,52 @@ var tableCursorDisplay = {
 var tableObjectControl = {
 	handleNewObjects: function handleNewObjects(objectList) {
 		objectList.forEach(object => {
-			newSvg = canvasLayer.group()
-	
-			newSvg.currentScale = object.currentScale
-			newSvg.contentType = object.type
-			if (object.type == "picture") {
-				image = newSvg.image(object.filename)
-	
-				if (object.displayWidth) {
-					image.width(object.displayWidth)
-					image.height(object.displayHeight)
+			if (object) {
+				newSvg = canvasLayer.group()
+		
+				newSvg.currentScale = object.currentScale
+				newSvg.contentType = object.type
+				if (object.type == "picture") {
+					image = newSvg.image(object.filename)
+		
+					if (object.displayWidth) {
+						image.width(object.displayWidth)
+						image.height(object.displayHeight)
+					}
+					
+					image.rx = 0
+					image.ry = 0
 				}
-				
-				image.rx = 0
-				image.ry = 0
+		
+				if (object.type == "pdf") {
+					
+					newSvg.contentImage = newSvg.image()
+					newSvg.contentImage.rx = 0
+					newSvg.contentImage.ry = 0
+					newSvg.currentPage = object.currentPage
+					
+					pdfLoader = pdfjsLib.getDocument(object.filename)
+					newSvg.loaderPromise = pdfLoader.promise
+		
+					newSvg.loaderPromise.then(function (pdfObject) {
+						this.pdfContent = pdfObject
+						setPdfPage(this,1)
+					}.bind(newSvg))
+					
+				}
+		
+				newSvg.move(object.x,object.y)
+				newSvg.dblclick(tableObjectControl.interactionUI.show)
+		
+				tableObjectControl.makeSyncDraggable(newSvg)
+		
+				newSvg.node.dataset.networkId = object.networkId
+				newSvg.networkId = object.networkId
+				tableObjects[object.networkId] = newSvg
+		
+				newSvg.interactionUI = tableObjectControl.interactionUI.create(newSvg)
+				newSvg.interactionUI.front()
 			}
-	
-			if (object.type == "pdf") {
-				
-				newSvg.contentImage = newSvg.image()
-				newSvg.contentImage.rx = 0
-				newSvg.contentImage.ry = 0
-				newSvg.currentPage = object.currentPage
-				
-				pdfLoader = pdfjsLib.getDocument(object.filename)
-				newSvg.loaderPromise = pdfLoader.promise
-	
-				newSvg.loaderPromise.then(function (pdfObject) {
-					this.pdfContent = pdfObject
-					setPdfPage(this,1)
-				}.bind(newSvg))
-				
-			}
-	
-			newSvg.move(object.x,object.y)
-			newSvg.dblclick(tableObjectControl.interactionUI.show)
-	
-			tableObjectControl.makeSyncDraggable(newSvg)
-	
-			newSvg.node.dataset.networkId = object.networkId
-			newSvg.networkId = object.networkId
-			tableObjects[object.networkId] = newSvg
-	
-			newSvg.interactionUI = tableObjectControl.interactionUI.create(newSvg)
-			newSvg.interactionUI.front()
 		})
 	},
 

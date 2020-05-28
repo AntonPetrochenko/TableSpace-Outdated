@@ -129,18 +129,26 @@ db.serialize(() => {
 			)
 		})
 		console.log('Loaded permission groups')
+		
 		if (fs.existsSync('fullchain.pem') && fs.existsSync('privkey.pem')) {
+
+			console.log('Found fullchain.pem and privkey.pem')
+
 			var privateKey  = fs.readFileSync('privkey.pem', 'utf8');
 			var certificate = fs.readFileSync('fullchain.pem', 'utf8');
-			console.log('Found fullchain.pem and privkey.pem')
+
 			server = https.createServer({key: privateKey, cert: certificate},app).listen(31443)
+
 			//Initializing WebSocket against app
 			var expressWs = require('express-ws')(app,server)
 			app.ws('/ws',handleWebsocket);
+
 		} else {
+			
 			server = http.createServer(app).listen(31442)
 			var expressWs = require('express-ws')(app,server)
 			app.ws('/ws',handleWebsocket);
+			
 			console.error('Warning: Missing privkey.pem and/or fullchain.pem, starting in NON-SECURE MODE. Audio/video communication is not available!')
 			console.log('Warning: Missing privkey.pem and/or fullchain.pem, starting in NON-SECURE MODE. Audio/video communication is not available!')
 		}
@@ -389,7 +397,8 @@ function handleWebsocket(ws,req) { //Real time functionality starts here
 			connectionMessage = [
 				"HELO!",
 				userlist,
-				tableObjects
+				tableObjects,
+				ws.user.getPermissions()
 			]
 			connections.push(ws)
 			sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest
