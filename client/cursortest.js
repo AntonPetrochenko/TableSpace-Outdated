@@ -12,7 +12,7 @@ var dragInterval
 var dragIntervalObject = {}
 
 var drawToolState = {
-	drawing: true,
+	drawing: false,
 	stroke: { color: '#f06', opacity: 0.6, width: 5 },
 	fill: {color: '#00f'}
 }
@@ -230,9 +230,9 @@ var tableObjectControl = {
 			}
 		})
 		newSvg.on("dragmove", e => {
+			e.preventDefault()
 			if (user.permissions.canTable && !drawToolState.drawing) {
 				const { handler, box, el } = e.detail
-				e.preventDefault()
 				handler.el.move(box.x,box.y)
 				handler.el.children().forEach(
 					e => {
