@@ -398,6 +398,8 @@ function handleWebsocket(ws,req) { //Real time functionality starts here
 				"HELO!",
 				userlist,
 				tableObjects,
+				ws.user.displayName,
+				ws.user.color,
 				ws.user.getPermissions()
 			]
 			connections.push(ws)
