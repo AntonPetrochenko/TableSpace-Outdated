@@ -12,10 +12,10 @@ var dragInterval
 var dragIntervalObject = {}
 
 var drawToolState = {
-	drawingMode: true,
+	drawingMode: false,
 	currentlyDrawing: false,
 	stroke: { color: '#f06', opacity: 0.6, width: 5 },
-	fill: {color: '#00f'},
+	fill: {color: '#00f', opacity: 0},
 }
 
 tableObjects = []
@@ -24,7 +24,7 @@ userCursors = []
 
 var formCallbacks = {
 	nothing: function nothing() {
-		console.log('Did nothing')
+		 
 	},
 	loginSuccess: function loginSuccess() {
 		$('#loginScreen').modal('hide')
@@ -33,6 +33,10 @@ var formCallbacks = {
 }
 
 var userInterface = {
+	buttons: {
+		enableDrawing: document.getElementById("enableDrawing"),
+		disableDrawing: document.getElementById("disableDrawing")
+	},
 	toggleDrawer: function toggleDrawer(e) {
 		var drawer = e.parentElement
 		if (drawer.classList.contains("hidden")) {
@@ -42,6 +46,24 @@ var userInterface = {
 			drawer.classList.remove("shown")
 			drawer.classList.add("hidden")
 		}
+	},
+	enableDrawing: function endableDrawing() {
+		this.buttons.enableDrawing.classList.add('btn-primary')
+		this.buttons.enableDrawing.classList.remove('btn-light')
+
+		this.buttons.disableDrawing.classList.remove('btn-primary')
+		this.buttons.disableDrawing.classList.add('btn-light')
+
+		drawToolState.drawingMode = true
+	},
+	disableDrawing: function disableDrawing(button) {
+		this.buttons.enableDrawing.classList.remove('btn-primary')
+		this.buttons.enableDrawing.classList.add('btn-light')
+
+		this.buttons.disableDrawing.classList.add('btn-primary')
+		this.buttons.disableDrawing.classList.remove('btn-light')
+		
+		drawToolState.drawingMode = false
 	},
 	updatePermissions() {
 		//we have canChat, canTable, canVideo and canAudio and separately adminPermissions
@@ -78,17 +100,50 @@ var userInterface = {
 			y: Math.round(p.y*100)/100
 		}
 	},
+	dragging: {
+		dragStart: function dragStart(event) {
+			if (user.permissions.canTable && !drawToolState.drawingMode) {
+				dragInterval = setInterval(networking.sendDraggablePosition, 50) 
+			}
+		},
+		dragMove: function dragMove(event) {
+			event.preventDefault()
+			if (user.permissions.canTable && !drawToolState.drawingMode) {
+				const { handler, box, el } = event.detail
+				handler.el.move(box.x,box.y)
+				handler.el.children().forEach(
+					e => {
+						e.move(box.x+e.rx,box.y+e.ry)
+					}
+				)
+				//handler.move(box.x, box.y)
+				dragIntervalObject.x = box.x
+				dragIntervalObject.y = box.y
+				dragIntervalObject.element = handler.el
+			}
+		},
+		dragEnd: function dragEnd(event) {
+			if (user.permissions.canTable && !drawToolState.drawingMode) {
+				clearInterval(dragInterval) 
+			}
+		}
+	}
+	,
 	drawing: {
 		drawMove: function drawMove(event) {
 			if (drawToolState.currentlyDrawing) {
 				let p = userInterface.getTransformedCoordinates(event.clientX,event.clientY)
-				
+				let c = { //constrained coordinates
+					x: clamp(p.x,drawToolState.constraints.x_min,drawToolState.constraints.x_max),
+					y: clamp(p.y,drawToolState.constraints.y_min,drawToolState.constraints.y_max)
+				}
 				let pointArray = drawToolState.newSvg.array()
-				pointArray.push([p.x,p.y])
+				pointArray.push([c.x,c.y])
 				drawToolState.newSvg.plot(pointArray)
 			}
 		},
 		drawStart: function drawStart(event) {
+			 
 			if (drawToolState.drawingMode && user.permissions.canTable) {
 				let drawingTarget = event.target.instance.parent().drawingCanvas
 				if (drawingTarget) {
@@ -97,14 +152,40 @@ var userInterface = {
 					let currentMouse = userInterface.getTransformedCoordinates(event.clientX,event.clientY)
 					drawToolState.newSvg = drawingTarget.polyline([currentMouse])
 
-					drawToolState.newSvg.fill({opacity: 0})
+					drawToolState.newSvg.fill(drawToolState.fill)
 					drawToolState.newSvg.stroke(drawToolState.stroke)
+
+					let rbox = drawToolState.target.parent().bbox()
+
+					drawToolState.constraints = {
+						x_min: rbox.x,
+						y_min: rbox.y,
+						x_max: rbox.x+rbox.w,
+						y_max: rbox.y+rbox.h, 
+					}
 
 					drawToolState.currentlyDrawing = true
 				}
 			}
 		},
 		drawEnd: function drawStart(event) {
+			//drawToolState.newSvg.node.style.cssText = "pointer-events: none;"
+			 
+
+			message = JSON.stringify([
+				'Drawing',
+				drawToolState.target.parent().networkId,
+				drawToolState.newSvg.array(),
+				drawToolState.fill,
+				drawToolState.stroke
+			])
+			socket.send(message)
+
+			let parray = drawToolState.newSvg.array()
+			let reverse = parray.slice().reverse()
+			let longarray = parray.concat(reverse)
+			drawToolState.newSvg.plot(longarray)		 
+
 			delete drawToolState.target
 			delete drawToolState.newSvg
 			drawToolState.currentlyDrawing = false
@@ -251,6 +332,9 @@ var tableObjectControl = {
 				
 
 				newSvg.drawingCanvas = newSvg.group()
+				newSvg.drawingCanvas.polyline([[object.x,object.y]]) //грязный костыль - придаём сущность пустой группе
+				newSvg.drawingCanvas.rx = 0
+				newSvg.drawingCanvas.ry = 0
 
 				newSvg.interactionUI = tableObjectControl.interactionUI.create(newSvg)
 				newSvg.interactionUI.front()
@@ -259,7 +343,21 @@ var tableObjectControl = {
 			}
 		})
 	},
-
+	handleNewDrawings: function handleNewDrawings(drawingContainerList) {
+		drawingContainerList.forEach(drawing => {
+			if (drawing && tableObjects[drawing.relatedNetworkId]) {
+				let newPolyline = tableObjects[drawing.relatedNetworkId].drawingCanvas.polyline()
+				
+				let parray = drawing.points
+				let reverse = parray.slice().reverse()
+				let longarray = parray.concat(reverse)
+				
+				newPolyline.plot(longarray)
+				newPolyline.stroke(drawing.stroke)
+				newPolyline.fill(drawing.fill)
+			}
+		})
+	},
 	//Фабричный метод новых курсоров пользователей
 	createUserCursor: function createUserCursor(cursor) {
 		newCursor = []
@@ -269,32 +367,10 @@ var tableObjectControl = {
 	},
 
 	makeSyncDraggable: function makeSyncDraggable(newSvg) {
-		newSvg.draggable().on("dragstart", e => { 
-			if (user.permissions.canTable && !drawToolState.drawingMode) {
-				dragInterval = setInterval(networking.sendDraggablePosition, 50) 
-			}
-		})
-		newSvg.on("dragend", e => { 
-			if (user.permissions.canTable && !drawToolState.drawingMode) {
-				clearInterval(dragInterval) 
-			}
-		})
-		newSvg.on("dragmove", e => {
-			e.preventDefault()
-			if (user.permissions.canTable && !drawToolState.drawingMode) {
-				const { handler, box, el } = e.detail
-				handler.el.move(box.x,box.y)
-				handler.el.children().forEach(
-					e => {
-						e.move(box.x+e.rx,box.y+e.ry)
-					}
-				)
-				//handler.move(box.x, box.y)
-				dragIntervalObject.x = box.x
-				dragIntervalObject.y = box.y
-				dragIntervalObject.element = handler.el
-			}
-		})
+		newSvg.draggable().on("dragstart",userInterface.dragging.dragStart)
+		newSvg.on("dragend", userInterface.dragging.dragEnd)
+		let throttledDragMove = makeThrottled(5,userInterface.dragging.dragMove)
+		newSvg.on("dragmove", e => {e.preventDefault(); throttledDragMove(e)} )
 	},
 
 	interactionUI: {
@@ -309,7 +385,7 @@ var tableObjectControl = {
 			interactionUI.node.dataset.networkId = target.networkId
 			interactionUI.add(buttonTemplate.content.cloneNode(true))
 		
-			console.log("Created UI")
+			 
 		
 			return interactionUI
 		},
@@ -440,6 +516,9 @@ function init() {
 			user.adminPermissions = message[6]
 			userInterface.updatePermissions()
 			tableObjectControl.handleNewObjects(message[2])
+			message[7].forEach(drawingSet => {
+				tableObjectControl.handleNewDrawings(drawingSet)
+			})
 			setInterval(networking.sendCursorPosition,100)
 			return
 		}
@@ -478,7 +557,7 @@ function init() {
 		}
 
 		if (message[0] == "FileList") {
-			console.log(message)
+			 
 			
 			fileContainer = document.getElementById('filebox')
 			fileContainer.textContent = ""
@@ -489,6 +568,10 @@ function init() {
 				newFileIcon.firstElementChild.dataset.id = fileData.id
 				fileContainer.appendChild(newFileIcon)
 			})
+		}
+
+		if (message[0] == "Drawing") {
+			tableObjectControl.handleNewDrawings([message[2]])
 		}
 }
 
@@ -510,4 +593,7 @@ function makeThrottled(delay, fn) {
 		lastCall = now;
 		return fn(...args);
 	}
+}
+function clamp(val, min, max) {
+    return val > max ? max : val < min ? min : val;
 }

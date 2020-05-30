@@ -245,6 +245,7 @@ clientIdIncrement = 0; //Is this used?
 
 connections = []
 tableObjects = []
+tableDrawings = []
 
 class Widget {
 	x = 800
@@ -270,6 +271,14 @@ class PdfBox extends Widget {
 	}
 }
 
+class Drawing {
+	constructor(points,fill,stroke,relatedNetworkId) {
+		this.points = points
+		this.fill = fill
+		this.stroke = stroke
+		this.relatedNetworkId = relatedNetworkId
+	}
+}
 
 
 async function ws_incoming(message) { //Network packet handlers
@@ -313,6 +322,7 @@ async function ws_incoming(message) { //Network packet handlers
 			if (newObject) {
 				tableObjects.push(newObject)
 				newObject.networkId = tableObjects.indexOf(newObject)
+				tableDrawings[newObject.networkId] = []
 				broadcastAll(["CreateObject",newObject])
 			} else {
 				//unsupported mimetype
@@ -358,9 +368,16 @@ async function ws_incoming(message) { //Network packet handlers
 				})
 			});
 			sendPacket(ws,["FileList",filesArray])
-		  });
-
-		
+		  });	
+	}
+	if (message[0] == "Drawing") {
+		let drawing =  new Drawing(message[2],message[3],message[4],message[1])
+		tableDrawings[message[1]].push(drawing)
+		broadcastOthers([
+			'Drawing',
+			message[1],
+			drawing
+		],ws)
 	}
 }
 
@@ -406,7 +423,8 @@ function handleWebsocket(ws,req) { //Real time functionality starts here
 				ws.user.displayName,
 				ws.user.color,
 				ws.user.getPermissions(),
-				ws.user.adminPermissions
+				ws.user.adminPermissions,
+				tableDrawings
 			]
 			connections.push(ws)
 			sendPacket(ws,connectionMessage); //HELO! sent, sending UserJoin packet to the rest

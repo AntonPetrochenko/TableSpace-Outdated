@@ -112,3 +112,18 @@ viewport {
     display: flex;
     flex-direction: column-reverse;
 }
+
+
+.colorpicker-position {
+    position: absolute;
+    bottom: 55px;
+    left: 4px;
+    transition: translateX 0.5s ease;
+}
+.colorpicker-position.colorpicker-hidden {
+    transform: translateX(-150%)
+}
+
+.colorpicker-position-shown.colorpicker-shown {
+    transform: translateX(0%)
+}
