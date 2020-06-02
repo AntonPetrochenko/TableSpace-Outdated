@@ -84,7 +84,7 @@
 					</tbody>
 				  </table>
 			</div>
-			<button type="button" data-toggle="modal" class="btn btn-primary" data-target="#addUser">Зарегистрировать пользователя</button>
+			<button type="button" data-toggle="modal" onclick="networking.populateGroupSelect('addUserGroup')" class="btn btn-primary" data-target="#addUser">Зарегистрировать пользователя</button>
 			<div class="drawer-handle handle-bottom" style="margin-left: 50%" onclick="userInterface.toggleDrawer(this); networking.requestUsers()">
 				<button id="drawer-handle-userList" class="btn btn-light notAllowed" type="button" class="m-1 btn btn-light"> 
 					Пользователи
@@ -298,11 +298,11 @@
 			</div>
 		</div>
 
-		<div class="modal fade" id="addUser" tabindex="-1" role="dialog" aria-labelledby="addUserModalLabel" aria-hidden="true">
+		<div class="modal fade" id="controlUser" tabindex="-1" role="dialog" aria-labelledby="addUserModalLabel" aria-hidden="true">
 			<div class="modal-dialog modal-dialog-centered" role="document">
 				<div class="modal-content">
 					<div class="modal-header">
-						<h5 class="modal-title" id="addUserModalLabel">Добавить пользователя</h5>
+						<h5 class="modal-title" id="addUserModalLabel">Действия</h5>
 						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 							<span aria-hidden="true">&times;</span>
 						  </button>
@@ -311,7 +311,7 @@
 						<form data-success-callback="nothing" id="controlUser" method=POST action="api/controluser" enctype="multipart/form-data">
 							<div class="form-group">
 								<label for="controlDisplayName">Отображаемое имя</label>
-								<input type="password" name="password" class="form-control" id="addUserFormDisplayName" placeholder="Иванов Иван Иванович">
+								<input type="password" name="password" class="form-control readonly" id="controlDisplayName" placeholder="Иванов Иван Иванович">
 							</div>
 							<div class="form-group">
 								<label for="controlGroup">Группа</label>
