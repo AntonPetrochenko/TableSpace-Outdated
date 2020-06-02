@@ -137,7 +137,7 @@ db.serialize(() => {
 			var privateKey  = fs.readFileSync('privkey.pem', 'utf8');
 			var certificate = fs.readFileSync('fullchain.pem', 'utf8');
 
-			server = https.createServer({key: privateKey, cert: certificate},app).listen(31443)
+			server = https.createServer({key: privateKey, cert: certificate},app).listen(31449)
 
 			//Initializing WebSocket against app
 			var expressWs = require('express-ws')(app,server)
@@ -164,24 +164,6 @@ db.serialize(() => {
 
 app.post('/api/:requesttype',multer_upload.none(), (req,res,next) => 
 	{
-		if (req.params.requesttype == "adduser")
-		{
-			console.log("Someone's adding a user")
-			bcrypt.hash(req.body.password, 10, function(err, hash) {
-				db.run('INSERT INTO users (displayName,login,passwordHash,permissionLevel,connectPermissions,color,userGroup) VALUES ($displayName,$login,$passwordHash,$permissionLevel,$connectPermissions,$color,$userGroup)',{
-					$displayName: "Новый пользователь",
-					$login: req.body.login,
-					$passwordHash: hash,
-					$permissionLevel: 0,
-					$connectPermissions: 1,
-					$color: "#0000FF",
-					$userGroup: 1
-				})
-				res.json({
-					status: "Success"
-				})
-			});
-		}
 		if (req.params.requesttype == "login") {
 			console.log("Someone's logging in...")
 			db.get('SELECT id, login, passwordHash FROM users WHERE login = $login',{
@@ -199,10 +181,14 @@ app.post('/api/:requesttype',multer_upload.none(), (req,res,next) =>
 								$id: row.id
 							})
 							res.json({
-								status: "Success"
+								status: "success"
 							})
 							console.log('Given an access token to ' + req.body.login)
 						} else {
+							res.json({
+								status: "failure",
+								reason: "Incorrect password!"
+							})
 							console.log('Incorrect password!')
 						}
 					});
@@ -213,6 +199,95 @@ app.post('/api/:requesttype',multer_upload.none(), (req,res,next) =>
 		}
 	}
 ) 
+
+app.get('/api/:requesttype',verifyModeratorAccess,(req,res,next) => {
+	if (req.params.requesttype == "grouplist") {
+		let resObject = []
+		groupList.forEach(group => {
+			if (group) {
+				resObject.push({
+					id: group.id,
+					displayName: group.displayName
+				})
+			}
+		})
+		res.json({
+			status: "success",
+			data: resObject
+		})
+	}
+	if (req.params.requesttype = "userlist") {
+		db.all("SELECT users.id, users.permissionLevel, users.displayName, groups.displayName as 'groupName' FROM users, groups WHERE users.userGroup = groups.id",(err,rows) => {
+			let resObject = []
+			rows.forEach(row => {
+				resObject.push({
+					id: row.id,
+					displayName: row.displayName,
+					group: row.groupName,
+					permissionLevel: row.permissionLevel
+				})
+			})
+			res.json({
+				status: "success",
+				data: resObject
+			})
+		})
+	}
+})
+
+function verifyAdminAccess(req,res,next) {
+	db.get('SELECT permissionLevel FROM users WHERE authToken = $token',{
+		$token: req.cookies.token
+	},(err,row) => {
+		if (row && row.permissionLevel > 1) {
+			next()
+		} else {
+			res.json({
+				status: "failure",
+				reason: "unverified"
+			})
+		}
+	})
+}
+
+function verifyModeratorAccess(req,res,next) {
+	db.get('SELECT permissionLevel FROM users WHERE authToken = $token',{
+		$token: req.cookies.token
+	},(err,row) => {
+		if (row && row.permissionLevel > 0) {
+			next()
+		} else {
+			res.json({
+				status: "failure",
+				reason: "unverified"
+			})
+		}
+	})
+}
+
+app.post('/modapi/:requesttype',verifyModeratorAccess,multer_upload.none(),(req,res,next) => {
+	if (req.params.requesttype == "adduser")
+		{
+			console.log("Someone's adding a user")
+			bcrypt.hash(req.body.password, 10, function(err, hash) {
+				db.run('INSERT INTO users (displayName,login,passwordHash,permissionLevel,connectPermissions,color,userGroup) VALUES ($displayName,$login,$passwordHash,$permissionLevel,$connectPermissions,$color,$userGroup)',{
+					$displayName: req.body.displayName,
+					$login: req.body.login,
+					$passwordHash: hash,
+					$permissionLevel: 0,
+					$connectPermissions: 1,
+					$color: "#0000FF",
+					$userGroup: req.body.group
+				})
+				res.json({
+					status: "Success"
+				})
+			});
+		}
+	if (req.params.type == "banUser") {
+
+	}
+})
 
 app.get('/uploads/:path',multer_upload.any(), (req,res,next) => 
 	{
@@ -272,13 +347,17 @@ class PdfBox extends Widget {
 }
 
 class Drawing {
-	constructor(points,fill,stroke,relatedNetworkId) {
+	constructor(points,fill,stroke,relatedNetworkId,relatedPage,eraseId) {
 		this.points = points
 		this.fill = fill
 		this.stroke = stroke
 		this.relatedNetworkId = relatedNetworkId
+		this.relatedPage = relatedPage
+		this.eraseId = eraseId
 	}
 }
+
+
 
 
 async function ws_incoming(message) { //Network packet handlers
@@ -371,13 +450,40 @@ async function ws_incoming(message) { //Network packet handlers
 		  });	
 	}
 	if (message[0] == "Drawing") {
-		let drawing =  new Drawing(message[2],message[3],message[4],message[1])
+		let drawing =  new Drawing(message[2],message[3],message[4],message[1],message[5],message[6])
 		tableDrawings[message[1]].push(drawing)
 		broadcastOthers([
 			'Drawing',
 			message[1],
 			drawing
 		],ws)
+	}
+
+	if (message[0] == "EraseDrawing") {
+		//Search for the appropriate serverside drawing to delete
+		tableDrawings[message[1]].forEach(drawing => {
+			if (drawing.eraseId == message[2]) {
+				drawing.points = []
+			}
+		})
+		broadcastOthers([
+			'EraseDrawing',
+			message[1],
+			message[2]
+		],ws)
+	}
+
+	if (message[0] == "SetPdfPage") {
+		tableObjects[message[1]].currentPage = message[2]
+		broadcastOthers([
+			'SetPdfPage',
+			message[1],
+			message[2]
+		],ws)
+	}
+
+	if (message[0] == "RequestGroupList") {
+
 	}
 }
 
@@ -464,6 +570,14 @@ function broadcastAll(message) {
 			sendPacket(client,message)
 		}
 	)
+}
+
+function sendPacketByDBUID(uid,message) {
+	connections.forEach((client,index) => {
+		if (client.user.id == uid) {
+			sendPacket(client,message)
+		}
+	})
 }
 
 function parseBooleanString(string) {

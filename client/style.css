@@ -87,6 +87,10 @@ viewport {
     grid-template-columns: repeat(auto-fit, 10em)
 }
 
+.userbox {
+    width: 50%;
+}
+
 .fileicon {
     text-align: center;
 }
@@ -126,4 +130,15 @@ viewport {
 
 .colorpicker-position-shown.colorpicker-shown {
     transform: translateX(0%)
+}
+
+table.table-fit {
+    width: auto !important;
+    table-layout: auto !important;
+}
+table.table-fit thead th, table.table-fit tfoot th {
+    width: auto !important;
+}
+table.table-fit tbody td, table.table-fit tfoot td {
+    width: auto !important;
 }

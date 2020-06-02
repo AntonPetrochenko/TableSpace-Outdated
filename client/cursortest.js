@@ -14,6 +14,7 @@ var dragIntervalObject = {}
 var drawToolState = {
 	drawingMode: false,
 	currentlyDrawing: false,
+	erasingMode: false,
 	stroke: { color: '#f06', opacity: 0.6, width: 5 },
 	fill: {color: '#00f', opacity: 0},
 }
@@ -35,7 +36,8 @@ var formCallbacks = {
 var userInterface = {
 	buttons: {
 		enableDrawing: document.getElementById("enableDrawing"),
-		disableDrawing: document.getElementById("disableDrawing")
+		disableDrawing: document.getElementById("disableDrawing"),
+		eraserTool: document.getElementById("eraserTool")
 	},
 	toggleDrawer: function toggleDrawer(e) {
 		var drawer = e.parentElement
@@ -54,7 +56,15 @@ var userInterface = {
 		this.buttons.disableDrawing.classList.remove('btn-primary')
 		this.buttons.disableDrawing.classList.add('btn-light')
 
+		this.buttons.eraserTool.classList.remove('btn-primary')
+		this.buttons.eraserTool.classList.add('btn-light')
+
 		drawToolState.drawingMode = true
+		drawToolState.erasingMode = false
+
+		document.body.addEventListener('pointermove',userInterface.drawing.drawMove)
+		document.body.addEventListener('pointerdown',userInterface.drawing.drawStart)
+		document.body.addEventListener('pointerup',userInterface.drawing.drawEnd)
 	},
 	disableDrawing: function disableDrawing(button) {
 		this.buttons.enableDrawing.classList.remove('btn-primary')
@@ -62,8 +72,35 @@ var userInterface = {
 
 		this.buttons.disableDrawing.classList.add('btn-primary')
 		this.buttons.disableDrawing.classList.remove('btn-light')
+
+		this.buttons.eraserTool.classList.remove('btn-primary')
+		this.buttons.eraserTool.classList.add('btn-light')
 		
 		drawToolState.drawingMode = false
+		drawToolState.erasingMode = false
+
+		document.body.removeEventListener('pointermove',userInterface.drawing.drawMove)
+		document.body.removeEventListener('pointerdown',userInterface.drawing.drawStart)
+		document.body.removeEventListener('pointerup',userInterface.drawing.drawEnd)
+	},
+	eraserTool: function eraserTool(button) {
+		this.buttons.enableDrawing.classList.remove('btn-primary')
+		this.buttons.enableDrawing.classList.add('btn-light')
+
+		this.buttons.disableDrawing.classList.remove('btn-primary')
+		this.buttons.disableDrawing.classList.add('btn-light')
+
+		this.buttons.eraserTool.classList.add('btn-primary')
+		this.buttons.eraserTool.classList.remove('btn-light')
+		
+		drawToolState.drawingMode = false
+		drawToolState.erasingMode = true
+
+		document.body.removeEventListener('pointermove',userInterface.drawing.drawMove)
+		document.body.removeEventListener('pointerdown',userInterface.drawing.drawStart)
+		document.body.removeEventListener('pointerup',userInterface.drawing.drawEnd)
+
+		document.body.addEventListener('pointerdown',userInterface.drawing.erasePolyline)
 	},
 	updatePermissions() {
 		//we have canChat, canTable, canVideo and canAudio and separately adminPermissions
@@ -108,7 +145,7 @@ var userInterface = {
 		},
 		dragMove: function dragMove(event) {
 			event.preventDefault()
-			if (user.permissions.canTable && !drawToolState.drawingMode) {
+			if (user.permissions.canTable && !drawToolState.drawingMode && !drawToolState.erasingMode) {
 				const { handler, box, el } = event.detail
 				handler.el.move(box.x,box.y)
 				handler.el.children().forEach(
@@ -130,7 +167,7 @@ var userInterface = {
 	}
 	,
 	drawing: {
-		drawMove: function drawMove(event) {
+		drawMove: makeThrottled(25,function drawMove(event) {
 			if (drawToolState.currentlyDrawing) {
 				let p = userInterface.getTransformedCoordinates(event.clientX,event.clientY)
 				let c = { //constrained coordinates
@@ -141,7 +178,7 @@ var userInterface = {
 				pointArray.push([c.x,c.y])
 				drawToolState.newSvg.plot(pointArray)
 			}
-		},
+		}),
 		drawStart: function drawStart(event) {
 			 
 			if (drawToolState.drawingMode && user.permissions.canTable) {
@@ -152,6 +189,9 @@ var userInterface = {
 					let currentMouse = userInterface.getTransformedCoordinates(event.clientX,event.clientY)
 					drawToolState.newSvg = drawingTarget.polyline([currentMouse])
 
+					if (drawingTarget.parent().paged) {
+						drawToolState.newSvg.attr({page: drawingTarget.parent().currentPage})
+					}
 					drawToolState.newSvg.fill(drawToolState.fill)
 					drawToolState.newSvg.stroke(drawToolState.stroke)
 
@@ -168,27 +208,54 @@ var userInterface = {
 				}
 			}
 		},
-		drawEnd: function drawStart(event) {
+		drawEnd: function drawEnd(event) {
 			//drawToolState.newSvg.node.style.cssText = "pointer-events: none;"
 			 
 
-			message = JSON.stringify([
-				'Drawing',
-				drawToolState.target.parent().networkId,
-				drawToolState.newSvg.array(),
-				drawToolState.fill,
-				drawToolState.stroke
-			])
-			socket.send(message)
+			
 
 			let parray = drawToolState.newSvg.array()
 			let reverse = parray.slice().reverse()
 			let longarray = parray.concat(reverse)
-			drawToolState.newSvg.plot(longarray)		 
+			drawToolState.newSvg.plot(longarray)
+			parray.forEach((point) => {
+				point[0] -= drawToolState.target.x()
+				point[1] -= drawToolState.target.y()
+			})
+			drawToolState.newSvg.erasable = true
 
+
+			let eraseId = makeid(16)
+			message = JSON.stringify([
+				'Drawing',
+				drawToolState.target.parent().networkId,
+				parray,
+				drawToolState.fill,
+				drawToolState.stroke,
+				drawToolState.target.parent().paged ? drawToolState.newSvg.attr().page : 0,
+				eraseId
+			])
+			drawToolState.newSvg.attr({eraseId: eraseId})
+			socket.send(message)
+			
 			delete drawToolState.target
 			delete drawToolState.newSvg
 			drawToolState.currentlyDrawing = false
+		},
+		erasePolyline: function erasePolyline(event) {
+			let target = event.target.instance
+			if (target.erasable) {
+				let targetOwner = target.parents()[1]
+				let targetOwnerNetworkId = targetOwner.networkId
+				let targetEraseId = target.attr().eraseId
+				let message = JSON.stringify([
+					'EraseDrawing',
+					targetOwnerNetworkId,
+					targetEraseId,
+				])
+				socket.send(message)
+				target.remove()
+			}
 		}
 	}
 }
@@ -245,6 +312,23 @@ var networking = {
 		socket.send(message)
 	},
 
+	requestUsers: function requestUsers() {
+		target = document.getElementById('userbox-table')
+		target.innerHTML = `<tr> <td> Загрузка... <td> </tr>`
+		$.get("/api/userlist",result => {
+			target.innerHTML = ""
+			result.data.forEach(user => (
+				target.innerHTML += `
+					<tr data-toggle="modal" data-target="#controlUser" data-displayname="${user.displayName}" data-uid="${user.id}">
+						<th scope="row"> ${user.permissionLevel} </th>
+						<td> ${user.displayName} </td>
+						<td> ${user.group}</td>
+					</tr>
+				`
+			))
+		})
+	},
+
 	requestObjectCreation: function requestObjectCreation(e) {
 		message = JSON.stringify(
 			[
@@ -253,6 +337,17 @@ var networking = {
 			]
 		)
 		socket.send(message)
+	},
+
+	populateGroupSelect: function populateGroupSelect(targetId) {
+		target = document.getElementById(targetId)
+		target.innerHTML = `<option value=1>Загрузка...</option>`
+		$.get("/api/grouplist",result => {
+			target.innerHTML = ""
+			result.data.forEach(group => (
+				target.innerHTML += `<option value="${group.id}">${group.displayName}</option>`
+			))
+		})
 	}
 	
 }
@@ -289,39 +384,70 @@ var tableObjectControl = {
 		objectList.forEach(object => {
 			if (object) {
 				newSvg = canvasLayer.group()
-		
+				newSvg.move(object.x,object.y)
+				newSvg.currentPage = 1
+				newSvg.pageCount = 1
+				newSvg.pageCanvasPool = []
+
+				newSvg.pageCanvasPool[1] = newSvg.group()
+				newSvg.pageCanvasPool[1].polyline([[object.x,object.y]]).attr({anchor: 1}) //грязный костыль - придаём сущность пустой группе
+				newSvg.pageCanvasPool[1].rx = 0
+				newSvg.pageCanvasPool[1].ry = 0
+				newSvg.drawingCanvas = newSvg.pageCanvasPool[1]
+
 				newSvg.currentScale = object.currentScale
 				newSvg.contentType = object.type
+
+				
 				if (object.type == "picture") {
 					image = newSvg.image(object.filename)
-		
+					image.back()
+					image.move(object.x,object.y)
 					if (object.displayWidth) {
 						image.width(object.displayWidth)
 						image.height(object.displayHeight)
 					}
-					
+
 					image.rx = 0
 					image.ry = 0
 				}
 		
 				if (object.type == "pdf") {
 					
+					newSvg.paged = true
 					newSvg.contentImage = newSvg.image()
+					newSvg.contentImage.move(object.x,object.y)
 					newSvg.contentImage.rx = 0
 					newSvg.contentImage.ry = 0
 					newSvg.currentPage = object.currentPage
+
+					newSvg.preloader = newSvg.image('data:image/svg+xml,%3Csvg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.0" width="64px" height="64px" viewBox="0 0 128 128" xml:space="preserve"%3E%3Cg%3E%3Cpath d="M75.4 126.63a11.43 11.43 0 0 1-2.1-22.65 40.9 40.9 0 0 0 30.5-30.6 11.4 11.4 0 1 1 22.27 4.87h.02a63.77 63.77 0 0 1-47.8 48.05v-.02a11.38 11.38 0 0 1-2.93.37z" fill="%23213ded" fill-opacity="1"/%3E%3CanimateTransform attributeName="transform" type="rotate" from="0 64 64" to="360 64 64" dur="400ms" repeatCount="indefinite"%3E%3C/animateTransform%3E%3C/g%3E%3C/svg%3E')
+					newSvg.preloader.move(object.x,object.y)
+					newSvg.preloader.rx = 0
+					newSvg.preloader.ry = 0
+
+					newSvg.preloader.show()
+					
 					
 					pdfLoader = pdfjsLib.getDocument(object.filename)
 					newSvg.loaderPromise = pdfLoader.promise
 		
 					newSvg.loaderPromise.then(function (pdfObject) {
 						this.pdfContent = pdfObject
-						setPdfPage(this,1)
+						this.pageCount = pdfObject.numPages
+						for(i = 2; i<=this.pageCount; i+=1) {
+							if (!newSvg.pageCanvasPool[i]) {
+								tableObjectControl.prepareSvgCanvas(this,i,object.x,object.y)
+							}
+						}
+						this.drawingCanvas = this.pageCanvasPool[1]
+						tableObjectControl.interactionUI.pdf.setPdfPage(newSvg,newSvg.currentPage)
+						this.contentImage.back()
 					}.bind(newSvg))
 					
 				}
 		
-				newSvg.move(object.x,object.y)
+				
 				newSvg.dblclick(tableObjectControl.interactionUI.show)
 				
 				tableObjectControl.makeSyncDraggable(newSvg)
@@ -329,32 +455,51 @@ var tableObjectControl = {
 				newSvg.node.dataset.networkId = object.networkId
 				newSvg.networkId = object.networkId
 				tableObjects[object.networkId] = newSvg
-				
-
-				newSvg.drawingCanvas = newSvg.group()
-				newSvg.drawingCanvas.polyline([[object.x,object.y]]) //грязный костыль - придаём сущность пустой группе
-				newSvg.drawingCanvas.rx = 0
-				newSvg.drawingCanvas.ry = 0
 
 				newSvg.interactionUI = tableObjectControl.interactionUI.create(newSvg)
 				newSvg.interactionUI.front()
-
+				
 				
 			}
 		})
 	},
+	prepareSvgCanvas: function prepareSvgCanvas(target,pageNumber,anchor_x,anchor_y) {
+		target.pageCanvasPool[pageNumber] = newSvg.group()
+		target.pageCanvasPool[pageNumber].polyline([[anchor_x,anchor_y]]).attr({anchor: 1}) //грязный костыль - придаём сущность пустой группе
+		target.pageCanvasPool[pageNumber].rx = 0
+		target.pageCanvasPool[pageNumber].ry = 0
+	},
 	handleNewDrawings: function handleNewDrawings(drawingContainerList) {
 		drawingContainerList.forEach(drawing => {
-			if (drawing && tableObjects[drawing.relatedNetworkId]) {
-				let newPolyline = tableObjects[drawing.relatedNetworkId].drawingCanvas.polyline()
+			if (drawing) {
+				let relatedTableObject = tableObjects[drawing.relatedNetworkId]
+				if (relatedTableObject) {
+					let targetObject = tableObjects[drawing.relatedNetworkId]
+					let targetCanvasPool = targetObject.pageCanvasPool
+					let targetCanvas = targetCanvasPool[drawing.relatedPage]
+					if (!targetCanvas) {
+						tableObjectControl.prepareSvgCanvas(targetObject,drawing.relatedPage,targetObject.x(),targetObject.y())
+						targetCanvas = targetCanvasPool[drawing.relatedPage]
+					}
+					let newPolyline = targetCanvas.polyline()
 				
-				let parray = drawing.points
-				let reverse = parray.slice().reverse()
-				let longarray = parray.concat(reverse)
-				
-				newPolyline.plot(longarray)
-				newPolyline.stroke(drawing.stroke)
-				newPolyline.fill(drawing.fill)
+					let parray = drawing.points
+					let anchor = relatedTableObject.drawingCanvas.children()[0]
+					parray.forEach(point => {
+						point[0] += anchor.x()
+						point[1] += anchor.y()
+					})
+					let reverse = parray.slice().reverse()
+					let longarray = parray.concat(reverse)
+					
+					newPolyline.plot(longarray)
+					newPolyline.stroke(drawing.stroke)
+					newPolyline.fill(drawing.fill)
+					newPolyline.erasable = true
+					newPolyline.attr({page: drawing.relatedPage, eraseId: drawing.eraseId})
+				}
+			} else {
+				tableObjects[drawing.relatedNetworkId].drawingCanvas.polyline([0,0])
 			}
 		})
 	},
@@ -390,24 +535,24 @@ var tableObjectControl = {
 			return interactionUI
 		},
 		show: function showInteractionUI() {
-			this.interactionUI.animate(200,0,'now').ease('<').attr({width: 100, height: 180})
+			this.interactionUI.animate(200,0,'now').ease('<').attr({width: 200, height: 180})
 		},
 		hide: function hideInteractionUI(target) {
-			tableObjects[target.parentElement.dataset.networkId].interactionUI.animate(200,0,'now').ease('<').attr({width: 100, height: 0})
+			tableObjects[target.parentElement.dataset.networkId].interactionUI.animate(200,0,'now').ease('<').attr({width: 0, height: 0})
 		},
 		common: {
 			buttonDeleteObject: function buttonDeleteObject(button) {
 				message = JSON.stringify(
 					[
 						"DeleteObject",
-						button.parentElement.dataset.networkId
+						button.parentElement.parentElement.dataset.networkId
 					]
 				)
 				socket.send(message)
 			},
 
 			buttonScaleUp: function buttonScaleUp(button) {
-				targetNetworkId = Number(button.parentElement.dataset.networkId)
+				targetNetworkId = Number(button.parentElement.parentElement.dataset.networkId)
 				targetElement = tableObjects[targetNetworkId]
 				targetElement.currentScale += 0.1
 			
@@ -429,7 +574,7 @@ var tableObjectControl = {
 			},
 			
 			buttonScaleDown: function buttonScaleDown(button) {
-				targetNetworkId = Number(button.parentElement.dataset.networkId)
+				targetNetworkId = Number(button.parentElement.parentElement.dataset.networkId)
 				targetElement = tableObjects[targetNetworkId]
 				targetElement.currentScale -= 0.1
 			
@@ -452,14 +597,21 @@ var tableObjectControl = {
 		},
 		pdf: {
 			offsetPdfPage: function changePdfPage(button,pageOffset) {
-				targetNetworkId = Number(button.parentElement.dataset.networkId)
-				targetElement = tableObjects[targetNetworkId]
+				let targetNetworkId = Number(button.parentElement.parentElement.dataset.networkId)
+				let targetElement = tableObjects[targetNetworkId]
 				targetElement.currentPage += pageOffset
-				setPdfPage(targetElement,targetElement.currentPage + pageOffset)
+				tableObjectControl.interactionUI.pdf.setPdfPage(targetElement,targetElement.currentPage)
+				let message = JSON.stringify([
+					'SetPdfPage',
+					targetNetworkId,
+					targetElement.currentPage
+				])
+				socket.send(message)
 			},
-			setPdfPage: function setPdfPage(targetSvg,page) {
+			setPdfPage: function setPdfPage(targetSvg,pageNumber) {
 				pdfObject = targetSvg.pdfContent
-				pdfObject.getPage(page).then(page => 
+				targetSvg.preloader.show()
+				pdfObject.getPage(pageNumber).then(page => 
 					{
 					var canvas = document.createElement('canvas')
 					var viewport = page.getViewport({ scale: 1, });
@@ -475,7 +627,13 @@ var tableObjectControl = {
 					
 					page.render(renderContext).promise.then(() => 
 						{
+							targetSvg.preloader.hide()
 							targetSvg.contentImage.load(canvas.toDataURL())
+							targetSvg.pageCanvasPool.forEach(svgCanvas => {
+								svgCanvas.node.style.cssText = "visibility: hidden"
+							})
+							targetSvg.drawingCanvas = targetSvg.pageCanvasPool[pageNumber]
+							targetSvg.drawingCanvas.node.style.cssText = "visibility: visible"
 						});
 					}
 				)
@@ -493,12 +651,9 @@ function init() {
 	canvasLayer = SVG('#viewport')
 	document.body.addEventListener('mousemove',tableCursorDisplay.updateCursorPosition)
 	
-	document.body.addEventListener('pointermove',makeThrottled(25,userInterface.drawing.drawMove))
-	document.body.addEventListener('pointerdown',userInterface.drawing.drawStart)
-	document.body.addEventListener('pointerup',userInterface.drawing.drawEnd)
 	
 	if (location.protocol === 'https:') {
-		socket = new WebSocket("wss://" + document.domain + ":31443/ws")
+		socket = new WebSocket("wss://" + document.domain + ":31449/ws")
 	} else {
 		socket = new WebSocket("ws://" + document.domain + ":31442/ws")
 	}
@@ -534,6 +689,7 @@ function init() {
 			delete userCursors[message[1]]
 		}
 		if (message[0] == "ChatMessage") {
+			console.log('Got a message')
 			chatLayer.innerHTML = chatLayer.innerHTML + `<div class="chat-message"> <span style="color:${message[3]}"> [${message[2]}]</span>: ${message[1]} </div>`
 			chatLayer.scrollTop = chatLayer.scrollHeight
 		}
@@ -573,6 +729,21 @@ function init() {
 		if (message[0] == "Drawing") {
 			tableObjectControl.handleNewDrawings([message[2]])
 		}
+
+		if (message[0] == "EraseDrawing") {
+			tableObjects[message[1]].pageCanvasPool.forEach(drawingCanvas => {
+				drawingCanvas.children().forEach(drawing => {
+					if (drawing.attr().eraseId == message[2]) {
+						drawing.remove()
+					}
+				})
+			})
+		}
+
+		if (message[0] == "SetPdfPage") {
+			console.log('Remote PDF page changed')
+			tableObjectControl.interactionUI.pdf.setPdfPage(tableObjects[message[1]],message[2])
+		}
 }
 
 	
@@ -597,3 +768,13 @@ function makeThrottled(delay, fn) {
 function clamp(val, min, max) {
     return val > max ? max : val < min ? min : val;
 }
+
+function makeid(length) {
+	var result           = '';
+	var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	var charactersLength = characters.length;
+	for ( var i = 0; i < length; i++ ) {
+	   result += characters.charAt(Math.floor(Math.random() * charactersLength));
+	}
+	return result;
+ }
