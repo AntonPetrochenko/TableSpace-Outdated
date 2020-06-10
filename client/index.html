@@ -71,16 +71,6 @@
 					  </tr>
 					</thead>
 					<tbody id="userbox-table">
-					  <tr>
-						<th scope="row">1</th>
-						<td>Mark</td>
-						<td>По умолчанию</td>
-					  </tr>
-					  <tr>
-						<th scope="row">1</th>
-						<td>Mark</td>
-						<td>По умолчанию</td>
-					  </tr>
 					</tbody>
 				  </table>
 			</div>
@@ -271,7 +261,7 @@
 						<h5 class="modal-title" id="addUserModalLabel">Добавить пользователя</h5>
 					</div>
 					<div class="modal-body">
-						<form data-success-callback="nothing" id="addUser" method=POST action="api/adduser" enctype="multipart/form-data">
+						<form data-success-callback="addUserCallback" id="addUser" method=POST action="modapi/adduser" enctype="multipart/form-data">
 							<div class="form-group">
 							  <label for="addUserFormLogin">Логин</label>
 							  <input type="text" name="login" class="form-control" id="addUserFormLogin" placeholder="Логин">
@@ -282,7 +272,7 @@
 							</div>
 							<div class="form-group">
 								<label for="addUserDisplayName">Отображаемое имя</label>
-								<input type="password" name="displayName" class="form-control" id="addUserFormDisplayName" placeholder="Иванов Иван Иванович">
+								<input type="text" name="displayName" class="form-control" id="addUserFormDisplayName" placeholder="Иванов Иван Иванович">
 							</div>
 							<div class="form-group">
 								<label for="addUserGroup">Группа</label>
@@ -308,17 +298,21 @@
 						  </button>
 					</div>
 					<div class="modal-body">
-						<form data-success-callback="nothing" id="controlUser" method=POST action="api/controluser" enctype="multipart/form-data">
+						<form data-success-callback="controlUserCallback" id="controlUser" method=POST action="modapi/controluser" enctype="multipart/form-data">
+							<div class="form-group">
+								<label for="controlUserId">Номер пользователя</label>
+								<input type="text" name="uid" class="form-control-plaintext" id="controlUserId" readonly placeholder="Иванов Иван Иванович">
+							</div>
 							<div class="form-group">
 								<label for="controlDisplayName">Отображаемое имя</label>
-								<input type="password" name="password" class="form-control readonly" id="controlDisplayName" placeholder="Иванов Иван Иванович">
+								<input type="text" name="displayName" class="form-control-plaintext" id="controlDisplayName" readonly placeholder="Иванов Иван Иванович">
 							</div>
 							<div class="form-group">
 								<label for="controlGroup">Группа</label>
 								<select id="controlGroup" name="group" class="form-control"></select>
 							</div>
-							<button type="submit" value="submit" class="btn btn-primary">Применить</button>
-							<button type="submit" value="ban" class="btn btn-danger">Заблокировать</button>
+							<button type="submit" name="actiontype" value="update" class="btn btn-primary">Применить</button>
+							<button type="submit" name="actiontype" value="ban" class="btn btn-danger">Заблокировать</button>
 						</form>
 					</div>
 					<div class="modal-footer">
@@ -355,6 +349,16 @@
 						inline: true
 					});
 				});
+				$('#controlUser').on('show.bs.modal', function (event) {
+					var button = $(event.relatedTarget)
+					var displayName = button.data('displayname')
+					var uid = button.data('uid')
+					var groupId = button.data('groupid')
+					var modal = $(this)
+					modal.find('#controlDisplayName').val(displayName)
+					modal.find('#controlUserId').val(uid)
+					modal.find('#controlGroup').val(groupId)
+				})
 			});
 		</script>
 		<script src="cursortest.js"></script>

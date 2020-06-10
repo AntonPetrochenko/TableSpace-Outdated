@@ -1,19 +1,18 @@
+const { Group, PictureBox, PdfBox, Drawing, User } = require("./classes");
 
-//helper function but not sure i'll be using it at all
-const asyncHandler = fn => (req, res, next) =>
-  Promise
-    .resolve(fn(req, res, next))
-    .catch(next)
-
+var fs = require('fs');
 var bcrypt = require('bcrypt')
 var hat = require('hat')
 var http = require('http')
 var https = require('https')
 var express = require('express')
-var app = express()
 
 var multer = require('multer')
 var cookieparser = require('cookie-parser')
+
+
+var app = express()
+
 app.use(cookieparser())
 var storage = multer.diskStorage({
 	destination: function (req, file, cb) {
@@ -22,22 +21,12 @@ var storage = multer.diskStorage({
   })
 var multer_upload = multer({storage: storage})
 
-
-
-
-var fs = require('fs');
 //Let's get the show on the road
-//Checking if database directory exists
-var firstStart = false
+//Checking if database exists
 if (!fs.existsSync('./db/tablespace.sqlite3')) {
 	fs.copyFileSync('./db/db-init.sqlite3','./db/tablespace.sqlite3')
 	firstStart = true //If it doesn't exist assuming this is a fresh install
-}
-
-if (firstStart) {
-	//Copy the default database template
 	console.log('Assuming furst launch: tablespace.sqlite3 is missing, copying database from db-init.sqlite3')
-	//there's a bunch of stuff we'll need to do on first start later on
 }
 
 const sqlite3 = require('sqlite3').verbose();
@@ -48,73 +37,10 @@ let db = new sqlite3.Database('./db/tablespace.sqlite3', (err) => {
 		console.log('Database up and running!');
 	}	
 });
+exports.db = db;
 
-class Group {
-	id
-	displayName
-	#canVideo
-	#canAudio
-	#canChat
-	#canTable
-	constructor(id,displayName,canVideo,canAudio,canChat,canTable) {
-		this.id = id
-		this.displayName = displayName
-		this.#canVideo = canVideo
-		this.#canAudio = canAudio
-		this.#canChat =  canChat
-		this.#canTable = canTable
-	}
-	get() {
-		return {
-			canVideo: this.#canVideo,
-			canAudio: this.#canAudio,
-			canChat : this.#canChat ,
-			canTable: this.#canTable
-		}
-	}
-	fetch() {
-		db.get('SELECT * FROM groups WHERE id = $id',{$id: this.id},(err, row) => {
-			this.displayName = row.displayName
-			this.#canVideo = row.canVideo
-			this.#canAudio = row.canAudio
-			this.#canChat =  row.canChat
-			this.#canTable = row.canTable
-		})
-	}
-}
-
-
-class User {
-	id
-	displayName
-	adminPermissions
-	connectPermissions
-	color
-	profilePicturePath
-	#group
-	constructor(id,displayName,adminPermissions,connectPermissions,color,profilePicturePath,group) {
-		this.id = id
-		this.displayName = displayName
-		this.adminPermissions = adminPermissions
-		this.connectPermissions = connectPermissions
-		this.color = color
-		this.profilePicturePath = profilePicturePath
-		this.#group = group
-	}
-	getPermissions() {
-		if (this.#group) {
-			return this.#group.get()
-		} else {
-			return {
-				canVideo: false,
-				canAudio: false,
-				canChat: false,
-				canTable: false,
-			}
-		}
-	}
-}
-var groupList = []
+var groupList = [];
+exports.groupList = groupList;
 
 db.serialize(() => {
 	db.all('SELECT * FROM groups',(err,rows) => {
@@ -156,138 +82,20 @@ db.serialize(() => {
 	})
 })
 
-
+const { guestApi } = require("./guestApi");
+const { pubApi } = require("./pubApi");
+const { modApi } = require("./modApi");
+const { fileUpload } = require("./fileUpload");
 
 
 
 //app.use('/uploads',express.static('uploads'))
 
-app.post('/api/:requesttype',multer_upload.none(), (req,res,next) => 
-	{
-		if (req.params.requesttype == "login") {
-			console.log("Someone's logging in...")
-			db.get('SELECT id, login, passwordHash FROM users WHERE login = $login',{
-				$login: req.body.login
-			},
-			(err,row) => 
-			{
-				if (row) {
-					bcrypt.compare(req.body.password, row.passwordHash, function(err, result) {
-						if (result) {
-							token = hat()
-							res.cookie('token',token)
-							db.run('UPDATE users SET authToken = $token WHERE id = $id',{
-								$token: token,
-								$id: row.id
-							})
-							res.json({
-								status: "success"
-							})
-							console.log('Given an access token to ' + req.body.login)
-						} else {
-							res.json({
-								status: "failure",
-								reason: "Incorrect password!"
-							})
-							console.log('Incorrect password!')
-						}
-					});
-				} else {
-					console.log('No such user!')
-				}
-			})
-		}
-	}
-) 
+app.post('/api/:requesttype',multer_upload.none(), guestApi) 
 
-app.get('/api/:requesttype',verifyModeratorAccess,(req,res,next) => {
-	if (req.params.requesttype == "grouplist") {
-		let resObject = []
-		groupList.forEach(group => {
-			if (group) {
-				resObject.push({
-					id: group.id,
-					displayName: group.displayName
-				})
-			}
-		})
-		res.json({
-			status: "success",
-			data: resObject
-		})
-	}
-	if (req.params.requesttype = "userlist") {
-		db.all("SELECT users.id, users.permissionLevel, users.displayName, groups.displayName as 'groupName' FROM users, groups WHERE users.userGroup = groups.id",(err,rows) => {
-			let resObject = []
-			rows.forEach(row => {
-				resObject.push({
-					id: row.id,
-					displayName: row.displayName,
-					group: row.groupName,
-					permissionLevel: row.permissionLevel
-				})
-			})
-			res.json({
-				status: "success",
-				data: resObject
-			})
-		})
-	}
-})
+app.get('/api/:requesttype',verifyModeratorAccess,pubApi)
 
-function verifyAdminAccess(req,res,next) {
-	db.get('SELECT permissionLevel FROM users WHERE authToken = $token',{
-		$token: req.cookies.token
-	},(err,row) => {
-		if (row && row.permissionLevel > 1) {
-			next()
-		} else {
-			res.json({
-				status: "failure",
-				reason: "unverified"
-			})
-		}
-	})
-}
-
-function verifyModeratorAccess(req,res,next) {
-	db.get('SELECT permissionLevel FROM users WHERE authToken = $token',{
-		$token: req.cookies.token
-	},(err,row) => {
-		if (row && row.permissionLevel > 0) {
-			next()
-		} else {
-			res.json({
-				status: "failure",
-				reason: "unverified"
-			})
-		}
-	})
-}
-
-app.post('/modapi/:requesttype',verifyModeratorAccess,multer_upload.none(),(req,res,next) => {
-	if (req.params.requesttype == "adduser")
-		{
-			console.log("Someone's adding a user")
-			bcrypt.hash(req.body.password, 10, function(err, hash) {
-				db.run('INSERT INTO users (displayName,login,passwordHash,permissionLevel,connectPermissions,color,userGroup) VALUES ($displayName,$login,$passwordHash,$permissionLevel,$connectPermissions,$color,$userGroup)',{
-					$displayName: req.body.displayName,
-					$login: req.body.login,
-					$passwordHash: hash,
-					$permissionLevel: 0,
-					$connectPermissions: 1,
-					$color: "#0000FF",
-					$userGroup: req.body.group
-				})
-				res.json({
-					status: "Success"
-				})
-			});
-		}
-	if (req.params.type == "banUser") {
-
-	}
-})
+app.post('/modapi/:requesttype',verifyModeratorAccess,multer_upload.none(),modApi)
 
 app.get('/uploads/:path',multer_upload.any(), (req,res,next) => 
 	{
@@ -295,22 +103,7 @@ app.get('/uploads/:path',multer_upload.any(), (req,res,next) =>
 	}
 )
 
-app.post('/upload', multer_upload.single('upload'), asyncHandler( (req, res, next) => {
-	const file = req.file
-	if (!file) {
-		const error = new Error('Please upload a file')
-		error.httpStatusCode = 400
-		return next(error)
-	}
-	res.send("Success")
-	db.run('INSERT INTO files (path, mimetype) VALUES ($path, $type)',{
-				$path: '/uploads/' + file.filename, 
-				$type: file.mimetype
-			},
-		(err) => {console.error(err)
-		}
-	)
-  }) )
+app.post('/upload', multer_upload.single('upload'), fileUpload() )
 
 
 
@@ -321,44 +114,6 @@ clientIdIncrement = 0; //Is this used?
 connections = []
 tableObjects = []
 tableDrawings = []
-
-class Widget {
-	x = 800
-	y = 450
-	constructor(type) {
-		this.type = type
-		this.currentScale = 1
-	}
-}
-
-class PictureBox extends Widget {
-	constructor(filename) {
-		super("picture")
-		this.filename = filename
-	}
-}
-
-class PdfBox extends Widget {
-	currentPage = 1
-	constructor(filename) {
-		super("pdf") 
-		this.filename = filename
-	}
-}
-
-class Drawing {
-	constructor(points,fill,stroke,relatedNetworkId,relatedPage,eraseId) {
-		this.points = points
-		this.fill = fill
-		this.stroke = stroke
-		this.relatedNetworkId = relatedNetworkId
-		this.relatedPage = relatedPage
-		this.eraseId = eraseId
-	}
-}
-
-
-
 
 async function ws_incoming(message) { //Network packet handlers
 	ws = this
@@ -481,10 +236,6 @@ async function ws_incoming(message) { //Network packet handlers
 			message[2]
 		],ws)
 	}
-
-	if (message[0] == "RequestGroupList") {
-
-	}
 }
 
 function ws_handleClose(ws) {
@@ -580,10 +331,51 @@ function sendPacketByDBUID(uid,message) {
 	})
 }
 
+function sendPacketByGroupUID(gid,message) {
+	connections.forEach((client,index) => {
+		if (client.user.getGroupId() == gid) {
+			sendPacket(client,message)
+		}
+	})
+}
+
+
 function parseBooleanString(string) {
 	if (string == "true") {
 		return true
 	} else {
 		return false
 	}
+}
+
+function verifyAdminAccess(req,res,next) {
+	db.get('SELECT permissionLevel FROM users WHERE authToken = $token',{
+		$token: req.cookies.token
+	},(err,row) => {
+		if (row && row.permissionLevel > 1) {
+			next()
+		} else {
+			res.json({
+				status: "failure",
+				reason: "unverified"
+			})
+		}
+	})
+}
+
+function verifyModeratorAccess(req,res,next) {
+	db.get('SELECT permissionLevel FROM users WHERE authToken = $token',{
+		$token: req.cookies.token
+	},(err,row) => {
+		if (row && row.permissionLevel > 0) {
+			console.log('Verified moderator')
+			next()
+		} else {
+			console.log('Unverified moderator level access!')
+			res.json({
+				status: "failure",
+				reason: "unverified"
+			})
+		}
+	})
 }

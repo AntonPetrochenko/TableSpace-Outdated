@@ -27,10 +27,32 @@ var formCallbacks = {
 	nothing: function nothing() {
 		 
 	},
-	loginSuccess: function loginSuccess() {
-		$('#loginScreen').modal('hide')
-		init()
+	loginSuccess: function loginSuccess(res) {
+		if (res.status == "success") {
+			$('#loginScreen').modal('hide')
+			init()
+		} else {
+			alert(res.reason)
+		}
 	},
+	addUserCallback: function callback() {
+		if (res.status == "success") {
+			$('#addUser').modal('hide')
+			networking.requestUsers()
+		} else {
+			alert(res.reason)
+		}
+		
+	},
+	controlUserCallback: function callback() {
+		if (res.status == "success") {
+			$('#controlUser').modal('hide')
+			networking.requestUsers()
+		} else {
+			alert(res.reason)
+		}
+		
+	}
 }
 
 var userInterface = {
@@ -319,7 +341,7 @@ var networking = {
 			target.innerHTML = ""
 			result.data.forEach(user => (
 				target.innerHTML += `
-					<tr data-toggle="modal" data-target="#controlUser" data-displayname="${user.displayName}" data-uid="${user.id}">
+					<tr onclick="networking.populateGroupSelect('controlGroup',this.dataset.groupid)" data-toggle="modal" data-target="#controlUser" data-groupid="${user.groupId}" data-displayname="${user.displayName}" data-uid="${user.id}">
 						<th scope="row"> ${user.permissionLevel} </th>
 						<td> ${user.displayName} </td>
 						<td> ${user.group}</td>
@@ -339,7 +361,7 @@ var networking = {
 		socket.send(message)
 	},
 
-	populateGroupSelect: function populateGroupSelect(targetId) {
+	populateGroupSelect: function populateGroupSelect(targetId,selected) {
 		target = document.getElementById(targetId)
 		target.innerHTML = `<option value=1>Загрузка...</option>`
 		$.get("/api/grouplist",result => {
@@ -347,6 +369,9 @@ var networking = {
 			result.data.forEach(group => (
 				target.innerHTML += `<option value="${group.id}">${group.displayName}</option>`
 			))
+			if (selected) {
+				target.value = selected
+			}
 		})
 	}
 	
@@ -695,7 +720,6 @@ function init() {
 		}
 		if (message[0] == "CreateObject") {
 			newObject = message[1]
-
 			tableObjectControl.handleNewObjects([newObject])
 		}
 		if (message[0] == "DeleteObject") {
